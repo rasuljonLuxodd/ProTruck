@@ -175,4 +175,49 @@
   .stat-value {
     @apply text-3xl font-semibold tracking-tight tnum whitespace-nowrap;
   }
+
+  /* Subtle radial mesh used by the welcome hero. Two soft warm spots in
+     opposite corners — almost imperceptible but enough to break the flat
+     surface and make the card feel like a "moment" rather than a plate. */
+  .hero-mesh {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgb(var(--fg) / 0.04), transparent 45%),
+      radial-gradient(circle at 100% 100%, rgb(var(--fg) / 0.025), transparent 55%);
+  }
+  .dark .hero-mesh {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgb(var(--fg) / 0.05), transparent 45%),
+      radial-gradient(circle at 100% 100%, rgb(var(--fg) / 0.03), transparent 55%);
+  }
+
+  /* "Live" pulse — green dot with a soft expanding ring. */
+  .live-pulse {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: rgb(var(--positive));
+  }
+  .live-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    border: 1px solid rgb(var(--positive) / 0.5);
+    animation: live-pulse-ring 2s ease-out infinite;
+  }
+  @keyframes live-pulse-ring {
+    0%   { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+}
+
+@layer utilities {
+  /* Staggered entrance — pair with `animate-slideIn` or `animate-fadeIn` */
+  .stagger-1 { animation-delay: 40ms;  animation-fill-mode: backwards; }
+  .stagger-2 { animation-delay: 80ms;  animation-fill-mode: backwards; }
+  .stagger-3 { animation-delay: 120ms; animation-fill-mode: backwards; }
+  .stagger-4 { animation-delay: 160ms; animation-fill-mode: backwards; }
+  .stagger-5 { animation-delay: 200ms; animation-fill-mode: backwards; }
+  .stagger-6 { animation-delay: 240ms; animation-fill-mode: backwards; }
 }
