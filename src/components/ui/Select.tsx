@@ -130,7 +130,7 @@ export function Select<T extends string>({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-30 left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-bg shadow-lg animate-scaleIn py-1"
+          className="absolute z-[60] left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-bg shadow-lg animate-scaleIn py-1"
         >
           {options.length === 0 ? (
             <li className="px-3 py-2 text-sm text-fg-subtle text-center">—</li>

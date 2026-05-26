@@ -15,6 +15,7 @@ import { formatUZS, formatDate, daysBetween, toInputDate, fromInputDate } from '
 import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { DatePicker } from '@/components/ui/DatePicker';
 import type { Debt } from '@/types';
 
 export default function Debts() {
@@ -267,10 +268,10 @@ export default function Debts() {
                 <MoneyInput value={amount} onChange={setAmount} placeholder="0" />
               </Field>
               <Field label={t('common.date')}>
-                <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                <DatePicker value={date} onChange={setDate} />
               </Field>
               <Field label={t('debts.dueDate')}>
-                <input className="input" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+                <DatePicker value={dueDate} onChange={setDueDate} clearable placeholder="—" />
               </Field>
             </div>
             <Field label={t('common.note')}>

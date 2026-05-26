@@ -17,6 +17,7 @@ import {
 import { useSuppliers, useAddSupplier } from '@/hooks/useSuppliers';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Select } from '@/components/ui/Select';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
@@ -287,7 +288,7 @@ export default function Expenses() {
                 <MoneyInput value={amount} onChange={setAmount} placeholder="0" />
               </Field>
               <Field label={t('common.date')}>
-                <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                <DatePicker value={date} onChange={setDate} />
               </Field>
             </div>
             <Field label={t('common.paymentType')}>
