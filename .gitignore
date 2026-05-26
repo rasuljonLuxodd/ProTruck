@@ -10,3 +10,4 @@ dist
 
 # Per-machine Claude Code permissions; keep launch.json shared but not the local overrides
 .claude/settings.local.json
+.github/workflows/

@@ -162,6 +162,12 @@ export const translations = {
     'exp.vsPrev': "O'tgan Oyga Farq",
     'exp.newTitle': "Yangi xarajat",
     'exp.editTitle': 'Xarajatni tahrirlash',
+    'exp.recurring': "Davriy xarajatlar",
+    'exp.recurringDesc': "Har oyning belgilangan kunida avtomatik yaratiladi",
+    'exp.dayOfMonth': "Oyning kuni",
+    'exp.active': "Faol",
+    'exp.paused': "To'xtatilgan",
+    'exp.addRecurring': "Davriy qoidasini qo'shish",
 
     // workers
     'wrk.currentMonth': 'Joriy oy',
@@ -189,6 +195,8 @@ export const translations = {
     'wrk.salaryExpense': 'Ishchi maoshi',
     'wrk.advanceExpense': 'Ishchi avansi',
     'wrk.pickWorker': 'Ishchi tanlang',
+    'wrk.attendanceToday': "Bugun keldi",
+    'wrk.attendanceMissed': "Bugun yo'q",
 
     // calendar
     'cal.title': 'Oylik Arxiv Taqvimi',
@@ -433,6 +441,12 @@ export const translations = {
     'exp.vsPrev': 'vs previous month',
     'exp.newTitle': 'New expense',
     'exp.editTitle': 'Edit expense',
+    'exp.recurring': 'Recurring expenses',
+    'exp.recurringDesc': 'Auto-created each month on the chosen day',
+    'exp.dayOfMonth': 'Day of month',
+    'exp.active': 'Active',
+    'exp.paused': 'Paused',
+    'exp.addRecurring': 'Add recurring rule',
 
     'wrk.currentMonth': 'Current month',
     'wrk.totalAdvances': 'Total advances',
@@ -459,6 +473,8 @@ export const translations = {
     'wrk.salaryExpense': 'Worker salary',
     'wrk.advanceExpense': 'Worker advance',
     'wrk.pickWorker': 'Pick a worker',
+    'wrk.attendanceToday': 'Present today',
+    'wrk.attendanceMissed': 'Absent today',
 
     'cal.title': 'Monthly Archive Calendar',
     'cal.income': 'Income',
@@ -697,6 +713,12 @@ export const translations = {
     'exp.vsPrev': 'к прошлому месяцу',
     'exp.newTitle': 'Новый расход',
     'exp.editTitle': 'Изменить расход',
+    'exp.recurring': 'Регулярные расходы',
+    'exp.recurringDesc': 'Автоматически создаются каждый месяц в выбранный день',
+    'exp.dayOfMonth': 'День месяца',
+    'exp.active': 'Активно',
+    'exp.paused': 'Приостановлено',
+    'exp.addRecurring': 'Добавить регулярное правило',
 
     'wrk.currentMonth': 'Текущий месяц',
     'wrk.totalAdvances': 'Выдано авансов',
@@ -723,6 +745,8 @@ export const translations = {
     'wrk.salaryExpense': 'Зарплата сотрудника',
     'wrk.advanceExpense': 'Аванс сотрудника',
     'wrk.pickWorker': 'Выберите сотрудника',
+    'wrk.attendanceToday': 'Сегодня пришёл',
+    'wrk.attendanceMissed': 'Сегодня отсутствует',
 
     'cal.title': 'Архив по месяцам',
     'cal.income': 'Доход',

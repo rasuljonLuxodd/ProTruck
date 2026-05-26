@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Minus, Eye, Trash2, Wallet, Users as UsersIcon, Printer } from 'lucide-react';
+import { Plus, Minus, Eye, Trash2, Wallet, Users as UsersIcon, Printer, CheckCircle2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -7,6 +7,8 @@ import { Field } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
+import { supabase } from '@/data/supabaseClient';
+import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -64,6 +66,19 @@ export default function Workers() {
     const m = new Date().getMonth() + 1;
     return t(`month.${m}` as TranslationKey);
   }, [t]);
+
+  const qc = useQueryClient();
+  async function markAttendance(w: Worker) {
+    const { error } = await supabase.rpc('toggle_worker_attendance', {
+      p_worker_id: w.id,
+    });
+    if (error) {
+      toast(t('toast.error'), 'error');
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ['workers'] });
+    toast(t('toast.saved'));
+  }
 
   const totalAdvances = workers.reduce((a, w) => a + w.advance, 0);
 
@@ -243,6 +258,7 @@ export default function Workers() {
                         <button
                           className="w-7 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center transition"
                           onClick={() => adjustDays(w, -1)}
+                          title="-1"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -252,8 +268,17 @@ export default function Workers() {
                         <button
                           className="w-7 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center transition"
                           onClick={() => adjustDays(w, 1)}
+                          title="+1"
                         >
                           <Plus className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="px-2 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center gap-1 text-xs transition"
+                          onClick={() => markAttendance(w)}
+                          title={t('wrk.attendanceToday')}
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          {t('wrk.attendanceToday')}
                         </button>
                       </div>
                     </div>

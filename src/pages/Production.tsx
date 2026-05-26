@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Package } from 'lucide-react';
+import { Plus, Trash2, Package, Edit, Upload } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -15,6 +15,9 @@ import { useProductionLogs, useAddProductionLog } from '@/hooks/useProductionLog
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatDate } from '@/lib/format';
 import { productionThisMonth } from '@/lib/calc';
+import { parseCsv } from '@/lib/csv';
+import { supabase } from '@/data/supabaseClient';
+import type { Product } from '@/types';
 
 export default function Production() {
   const t = useT();
@@ -28,14 +31,94 @@ export default function Production() {
   const addAction = useAddActionLog();
 
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
   const [name, setName] = useState('');
   const [initialStock, setInitialStock] = useState(0);
   const [minStock, setMinStock] = useState(10);
+  const [imageUrl, setImageUrl] = useState<string | undefined>();
+  const [uploading, setUploading] = useState(false);
+  const [vatRate, setVatRate] = useState(0);
+
+  function openEdit(p: Product) {
+    setEditing(p);
+    setName(p.name);
+    setMinStock(p.minStock);
+    setImageUrl(p.imageUrl);
+    setVatRate(p.vatRate ?? 0);
+    setNewOpen(true);
+  }
+  function openNew() {
+    setEditing(null);
+    setName('');
+    setInitialStock(0);
+    setMinStock(10);
+    setImageUrl(undefined);
+    setVatRate(0);
+    setNewOpen(true);
+  }
+
+  async function uploadImage(file: File) {
+    setUploading(true);
+    const ext = file.name.split('.').pop() ?? 'png';
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('product-images')
+      .upload(path, file, { upsert: false, contentType: file.type });
+    if (error) {
+      toast(t('toast.error'), 'error');
+      setUploading(false);
+      return;
+    }
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+    setImageUrl(data.publicUrl);
+    setUploading(false);
+  }
 
   const [dailyOpen, setDailyOpen] = useState<string | null>(null);
   const [dailyQty, setDailyQty] = useState(0);
 
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState<Array<{ name: string; stock: number; minStock: number }>>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setImportError(null);
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length === 0) {
+      setImportError('Empty file');
+      setImportRows([]);
+      return;
+    }
+    // Expected headers: name, stock, min_stock (case-insensitive, min_stock optional)
+    const parsed = rows.map(r => {
+      const name = (r.name ?? r.Name ?? '').trim();
+      const stock = Number(r.stock ?? r.Stock ?? 0) || 0;
+      const minStock = Number(r.min_stock ?? r.minStock ?? r['Min Stock'] ?? 10) || 10;
+      return { name, stock, minStock };
+    }).filter(r => r.name);
+    setImportRows(parsed);
+    if (parsed.length === 0) setImportError('No valid rows. Expected columns: name, stock, min_stock');
+  }
+
+  async function runImport() {
+    for (const row of importRows) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          addProduct.mutate(
+            { ...row, vatRate: 0 },
+            { onSuccess: () => resolve(), onError: reject },
+          );
+        });
+      } catch {
+        // skip individual failures (e.g. duplicates)
+      }
+    }
+    toast(`${importRows.length} ${t('toast.saved').toLowerCase()}`);
+    setImportOpen(false);
+    setImportRows([]);
+  }
 
   const monthly = useMemo(() => productionThisMonth(logs), [logs]);
   const totalStock = useMemo(() => products.reduce((a, p) => a + p.stock, 0), [products]);
@@ -46,19 +129,34 @@ export default function Production() {
 
   function handleSaveNew() {
     if (!name.trim()) return;
-    addProduct.mutate(
-      { name: name.trim(), stock: initialStock, minStock },
-      {
-        onSuccess: () => {
-          toast(t('toast.saved'));
-          setNewOpen(false);
-          setName('');
-          setInitialStock(0);
-          setMinStock(10);
+    if (editing) {
+      updateProduct.mutate(
+        { id: editing.id, patch: { name: name.trim(), minStock, imageUrl, vatRate } },
+        {
+          onSuccess: () => {
+            toast(t('toast.saved'));
+            setNewOpen(false);
+            setEditing(null);
+          },
+          onError: () => toast(t('toast.error'), 'error'),
         },
-        onError: () => toast(t('toast.error'), 'error'),
-      },
-    );
+      );
+    } else {
+      addProduct.mutate(
+        { name: name.trim(), stock: initialStock, minStock, imageUrl, vatRate },
+        {
+          onSuccess: () => {
+            toast(t('toast.saved'));
+            setNewOpen(false);
+            setName('');
+            setInitialStock(0);
+            setMinStock(10);
+            setImageUrl(undefined);
+          },
+          onError: () => toast(t('toast.error'), 'error'),
+        },
+      );
+    }
   }
 
   function handleAddDaily() {
@@ -99,7 +197,16 @@ export default function Production() {
           <PageHeader
             title={t('nav.production')}
             onMenu={openMenu}
-            onAdd={() => setNewOpen(true)}
+            onAdd={openNew}
+            rightSlot={
+              <button
+                className="btn-secondary"
+                onClick={() => { setImportOpen(true); setImportRows([]); setImportError(null); }}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                CSV
+              </button>
+            }
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -114,7 +221,7 @@ export default function Production() {
               title={t('empty.products.title')}
               description={t('empty.products.desc')}
               actionLabel={t('prod.newProduct')}
-              onAction={() => setNewOpen(true)}
+              onAction={openNew}
             />
           ) : (
           <div className="card overflow-hidden">
@@ -131,7 +238,22 @@ export default function Production() {
                 <tbody>
                   {products.map(p => (
                     <tr key={p.id}>
-                      <td className="font-medium">{p.name}</td>
+                      <td className="font-medium">
+                        <div className="flex items-center gap-2.5">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt=""
+                              className="w-8 h-8 rounded-md object-cover border border-border shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-md bg-surface-2 border border-border shrink-0 flex items-center justify-center text-fg-subtle">
+                              <Package className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          <span>{p.name}</span>
+                        </div>
+                      </td>
                       <td>
                         <Badge
                           tone={
@@ -154,6 +276,13 @@ export default function Production() {
                           {t('prod.dailyAdd')}
                         </button>
                         <button
+                          className="btn-ghost !py-1.5"
+                          onClick={() => openEdit(p)}
+                          title={t('common.edit')}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           className="btn-ghost !py-1.5 text-negative hover:text-negative"
                           onClick={() => setConfirmDel(p.id)}
                         >
@@ -170,16 +299,16 @@ export default function Production() {
 
           <Modal
             open={newOpen}
-            onClose={() => setNewOpen(false)}
-            title={t('prod.newProduct')}
+            onClose={() => { setNewOpen(false); setEditing(null); }}
+            title={editing ? t('common.edit') : t('prod.newProduct')}
             size="sm"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setNewOpen(false)} disabled={addProduct.isPending}>
+                <button className="btn-secondary" onClick={() => { setNewOpen(false); setEditing(null); }} disabled={addProduct.isPending || updateProduct.isPending}>
                   {t('common.cancel')}
                 </button>
-                <button className="btn-primary" onClick={handleSaveNew} disabled={addProduct.isPending}>
-                  {addProduct.isPending ? '…' : t('common.save')}
+                <button className="btn-primary" onClick={handleSaveNew} disabled={addProduct.isPending || updateProduct.isPending}>
+                  {(addProduct.isPending || updateProduct.isPending) ? '…' : t('common.save')}
                 </button>
               </>
             }
@@ -187,14 +316,49 @@ export default function Production() {
             <Field label={t('prod.productName')}>
               <input className="input" value={name} onChange={e => setName(e.target.value)} />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={t('prod.initialStock')}>
-                <input className="input" type="number" min={0} value={initialStock} onChange={e => setInitialStock(Number(e.target.value))} />
-              </Field>
+            <div className="grid grid-cols-3 gap-3">
+              {!editing && (
+                <Field label={t('prod.initialStock')}>
+                  <input className="input" type="number" min={0} value={initialStock} onChange={e => setInitialStock(Number(e.target.value))} />
+                </Field>
+              )}
               <Field label={t('prod.minStock')}>
                 <input className="input" type="number" min={0} value={minStock} onChange={e => setMinStock(Number(e.target.value))} />
               </Field>
+              <Field label="VAT %">
+                <input className="input" type="number" min={0} max={100} value={vatRate} onChange={e => setVatRate(Number(e.target.value))} />
+              </Field>
             </div>
+            <Field label="Image">
+              <div className="flex items-center gap-3">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-border" />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-fg-subtle">
+                    <Package className="w-5 h-5" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadImage(f);
+                  }}
+                  className="block text-xs file:mr-2 file:py-1.5 file:px-2 file:rounded-md file:border file:border-border file:bg-bg file:text-fg file:hover:bg-surface file:transition"
+                  disabled={uploading}
+                />
+                {imageUrl && (
+                  <button
+                    type="button"
+                    className="btn-ghost !py-1 text-xs text-negative"
+                    onClick={() => setImageUrl(undefined)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </Field>
           </Modal>
 
           <Modal
@@ -223,6 +387,69 @@ export default function Production() {
             onConfirm={handleDelete}
             onCancel={() => setConfirmDel(null)}
           />
+
+          <Modal
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            title="Import products (CSV)"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setImportOpen(false)}>
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={runImport}
+                  disabled={importRows.length === 0}
+                >
+                  Import {importRows.length > 0 ? `(${importRows.length})` : ''}
+                </button>
+              </>
+            }
+          >
+            <div className="text-xs text-fg-muted">
+              Expected columns: <code>name</code>, <code>stock</code>, <code>min_stock</code>
+            </div>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="block w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-border file:bg-bg file:text-fg file:hover:bg-surface file:transition"
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) void handleFile(f);
+              }}
+            />
+            {importError && (
+              <div className="text-sm text-negative bg-negative/5 border border-negative/20 rounded-lg px-3 py-2">
+                {importError}
+              </div>
+            )}
+            {importRows.length > 0 && (
+              <div className="card overflow-hidden max-h-64 overflow-y-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>name</th>
+                      <th>stock</th>
+                      <th>min_stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importRows.slice(0, 50).map((r, i) => (
+                      <tr key={i}>
+                        <td>{r.name}</td>
+                        <td className="tnum">{r.stock}</td>
+                        <td className="tnum">{r.minStock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {importRows.length > 50 && (
+                  <div className="px-4 py-2 text-xs text-fg-muted">+{importRows.length - 50} more</div>
+                )}
+              </div>
+            )}
+          </Modal>
         </>
       )}
     </Layout>

@@ -14,7 +14,21 @@ export function useAddWorker() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; monthlySalary: number }) => repo.addWorker(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onMutate: async input => {
+      await qc.cancelQueries({ queryKey: KEY });
+      const previous = qc.getQueryData<Worker[]>(KEY);
+      const placeholder: Worker = {
+        id: `optimistic-${crypto.randomUUID()}`,
+        name: input.name,
+        monthlySalary: input.monthlySalary,
+        workDays: 0, bonus: 0, penalty: 0, advance: 0,
+        paymentHistory: [],
+      };
+      qc.setQueryData<Worker[]>(KEY, prev => [...(prev ?? []), placeholder]);
+      return { previous };
+    },
+    onError: (_e, _i, ctx) => { if (ctx?.previous) qc.setQueryData(KEY, ctx.previous); },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
 

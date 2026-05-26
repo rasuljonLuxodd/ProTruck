@@ -11,11 +11,16 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useExpenses, useAddExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/useExpenses';
+import {
+  useRecurringExpenses, useAddRecurringExpense, useUpdateRecurringExpense, useDeleteRecurringExpense,
+} from '@/hooks/useRecurringExpenses';
+import { useSuppliers, useAddSupplier } from '@/hooks/useSuppliers';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { inMonth } from '@/lib/calc';
-import type { Expense, ExpenseCategory, PaymentType } from '@/types';
+import type { Expense, ExpenseCategory, PaymentType, RecurringExpense } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 
 const CATEGORIES: ExpenseCategory[] = ['Ijara', 'Elektr', 'Xom ashyo', 'Maosh', 'Boshqa'];
@@ -23,6 +28,7 @@ const PAYMENT_TYPES: PaymentType[] = ['naqd', 'karta', 'qarz', 'aralash'];
 
 export default function Expenses() {
   const t = useT();
+  const fmtDate = useFormatDate();
   const { toast } = useToast();
   const { data: expenses = [] } = useExpenses();
   const add = useAddExpense();
@@ -42,6 +48,10 @@ export default function Expenses() {
   const [filterCat, setFilterCat] = useState<ExpenseCategory | 'all'>('all');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+
+  const { data: suppliers = [] } = useSuppliers();
+  const addSupplier = useAddSupplier();
+  const [newSupplierName, setNewSupplierName] = useState('');
 
   const now = new Date();
   const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -223,7 +233,7 @@ export default function Expenses() {
                         </td>
                         <td className="text-right text-negative font-semibold">{formatUZS(e.amount)}</td>
                         <td><Badge>{t(`payment.${e.paymentType}` as TranslationKey)}</Badge></td>
-                        <td className="font-mono text-xs text-fg-muted">{formatDate(e.date)}</td>
+                        <td className="font-mono text-xs text-fg-muted">{fmtDate(e.date)}</td>
                         <td className="text-right space-x-1 whitespace-nowrap">
                           <button className="btn-ghost !py-1.5" onClick={() => startEdit(e)}>
                             <Edit className="w-3.5 h-3.5" />
@@ -240,6 +250,8 @@ export default function Expenses() {
             </div>
           </div>
           )}
+
+          <RecurringSection />
 
           <Modal
             open={open}
@@ -277,6 +289,33 @@ export default function Expenses() {
                 ))}
               </select>
             </Field>
+
+            {category === 'Xom ashyo' && (
+              <Field label="Supplier">
+                <div className="flex gap-2">
+                  <select className="input flex-1" value="" onChange={() => { /* TODO: persist supplier_id */ }}>
+                    <option value="">—</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    className="input flex-1"
+                    placeholder="+ new supplier"
+                    value={newSupplierName}
+                    onChange={e => setNewSupplierName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newSupplierName.trim()) {
+                        e.preventDefault();
+                        addSupplier.mutate({ name: newSupplierName.trim() }, {
+                          onSuccess: () => { setNewSupplierName(''); toast(t('toast.saved')); },
+                        });
+                      }
+                    }}
+                  />
+                </div>
+              </Field>
+            )}
           </Modal>
 
           <ConfirmDialog
@@ -287,5 +326,160 @@ export default function Expenses() {
         </>
       )}
     </Layout>
+  );
+}
+
+// ---------- recurring rules section ----------
+
+function RecurringSection() {
+  const t = useT();
+  const { toast } = useToast();
+  const { data: rules = [] } = useRecurringExpenses();
+  const add = useAddRecurringExpense();
+  const upd = useUpdateRecurringExpense();
+  const del = useDeleteRecurringExpense();
+
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<RecurringExpense | null>(null);
+  const [category, setCategory] = useState<ExpenseCategory>('Ijara');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState(0);
+  const [paymentType, setPaymentType] = useState<PaymentType>('naqd');
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [active, setActive] = useState(true);
+
+  function reset() {
+    setEditing(null);
+    setCategory('Ijara');
+    setDescription('');
+    setAmount(0);
+    setPaymentType('naqd');
+    setDayOfMonth(1);
+    setActive(true);
+  }
+  function startAdd() { reset(); setOpen(true); }
+  function startEdit(r: RecurringExpense) {
+    setEditing(r);
+    setCategory(r.category); setDescription(r.description);
+    setAmount(r.amount); setPaymentType(r.paymentType);
+    setDayOfMonth(r.dayOfMonth); setActive(r.active);
+    setOpen(true);
+  }
+
+  function save() {
+    if (!description.trim() || amount <= 0) return;
+    const payload = { category, description: description.trim(), amount, paymentType, dayOfMonth, active };
+    if (editing) {
+      upd.mutate({ id: editing.id, patch: payload }, {
+        onSuccess: () => { toast(t('toast.saved')); setOpen(false); reset(); },
+        onError: () => toast(t('toast.error'), 'error'),
+      });
+    } else {
+      add.mutate(payload, {
+        onSuccess: () => { toast(t('toast.saved')); setOpen(false); reset(); },
+        onError: () => toast(t('toast.error'), 'error'),
+      });
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-semibold">{t('exp.recurring')}</h2>
+          <p className="text-xs text-fg-muted mt-0.5">{t('exp.recurringDesc')}</p>
+        </div>
+        <button className="btn-secondary" onClick={startAdd}>
+          <Edit className="w-3.5 h-3.5" />
+          {t('exp.addRecurring')}
+        </button>
+      </div>
+
+      {rules.length === 0 ? (
+        <div className="card p-6 text-center text-sm text-fg-muted">{t('common.empty')}</div>
+      ) : (
+        <div className="card overflow-hidden">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t('common.category')}</th>
+                <th>{t('common.description')}</th>
+                <th className="text-right">{t('common.amount')}</th>
+                <th>{t('exp.dayOfMonth')}</th>
+                <th>{t('exp.active')}</th>
+                <th className="text-right">{t('common.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map(r => (
+                <tr key={r.id}>
+                  <td><Badge>{t(`expCat.${r.category}` as TranslationKey)}</Badge></td>
+                  <td>{r.description}</td>
+                  <td className="text-right font-semibold">{formatUZS(r.amount)}</td>
+                  <td className="font-mono">{r.dayOfMonth}</td>
+                  <td>
+                    <button
+                      onClick={() => upd.mutate({ id: r.id, patch: { active: !r.active } })}
+                      className={`badge ${r.active ? 'bg-positive/10 text-positive border border-positive/20' : 'bg-surface-2 text-fg-muted border border-border'}`}
+                    >
+                      {r.active ? t('exp.active') : t('exp.paused')}
+                    </button>
+                  </td>
+                  <td className="text-right space-x-1">
+                    <button className="btn-ghost !py-1.5" onClick={() => startEdit(r)}>
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      className="btn-ghost !py-1.5 text-negative"
+                      onClick={() => del.mutate(r.id, { onSuccess: () => toast(t('toast.deleted')) })}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal
+        open={open}
+        onClose={() => { setOpen(false); reset(); }}
+        title={editing ? t('common.edit') : t('exp.addRecurring')}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => { setOpen(false); reset(); }}>{t('common.cancel')}</button>
+            <button className="btn-primary" onClick={save}>{t('common.save')}</button>
+          </>
+        }
+      >
+        <Field label={t('common.category')}>
+          <select className="input" value={category} onChange={e => setCategory(e.target.value as ExpenseCategory)}>
+            {CATEGORIES.map(c => (<option key={c} value={c}>{t(`expCat.${c}` as TranslationKey)}</option>))}
+          </select>
+        </Field>
+        <Field label={t('common.description')}>
+          <input className="input" value={description} onChange={e => setDescription(e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('common.amount')}>
+            <input className="input" type="number" min={0} value={amount} onChange={e => setAmount(Number(e.target.value))} />
+          </Field>
+          <Field label={t('exp.dayOfMonth')}>
+            <input className="input" type="number" min={1} max={28} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))} />
+          </Field>
+        </div>
+        <Field label={t('common.paymentType')}>
+          <select className="input" value={paymentType} onChange={e => setPaymentType(e.target.value as PaymentType)}>
+            {PAYMENT_TYPES.map(p => (<option key={p} value={p}>{t(`payment.${p}` as TranslationKey)}</option>))}
+          </select>
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+          {t('exp.active')}
+        </label>
+      </Modal>
+    </div>
   );
 }

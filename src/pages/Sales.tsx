@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Search, ShoppingCart, Printer, Download } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingCart, Printer, Download, Undo2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -11,9 +11,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
-import { useSales, useDeleteSale, useExecuteSale } from '@/hooks/useSales';
+import { useSales, useDeleteSale, useExecuteSale, useRefundSale } from '@/hooks/useSales';
 import { useProducts } from '@/hooks/useProducts';
+import { useDebts } from '@/hooks/useDebts';
+import { useCreditLimits } from '@/hooks/useCreditLimits';
 import { formatUZS, formatDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { actualCashIncome, inMonth } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { cn } from '@/lib/utils';
@@ -30,11 +33,16 @@ const statusTone = {
 
 export default function Sales() {
   const t = useT();
+  const fmtDate = useFormatDate();
   const { toast } = useToast();
   const { data: sales = [] } = useSales();
   const { data: products = [] } = useProducts();
+  const { data: debts = [] } = useDebts();
+  const { data: limits = [] } = useCreditLimits();
   const executeSale = useExecuteSale();
   const deleteSale = useDeleteSale();
+  const refundSale = useRefundSale();
+  const [confirmRefund, setConfirmRefund] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -76,6 +84,25 @@ export default function Sales() {
   }, [sales, filterPayment, search]);
 
   const cartTotal = cart.reduce((a, i) => a + i.quantity * i.price, 0);
+
+  // Soft credit-limit check. Sum existing debt for this customer + the
+  // debt this sale would add; compare against any saved limit.
+  const creditWarning = useMemo(() => {
+    if (!customerName.trim()) return null;
+    if (paymentType !== 'qarz' && paymentType !== 'aralash') return null;
+    const key = customerName.trim().toLowerCase();
+    const limit = limits.find(l => l.name.trim().toLowerCase() === key);
+    if (!limit) return null;
+    const existingDebt = debts
+      .filter(d => d.customerName.trim().toLowerCase() === key)
+      .reduce((a, d) => a + d.amount, 0);
+    const addedDebt = paymentType === 'qarz' ? cartTotal : debtPart;
+    const projected = existingDebt + addedDebt;
+    if (projected > limit.maxDebt) {
+      return { existing: existingDebt, added: addedDebt, limit: limit.maxDebt };
+    }
+    return null;
+  }, [customerName, paymentType, limits, debts, cartTotal, debtPart]);
 
   // Distinct customers (most-recent first) for the autocomplete datalist.
   const customerSuggestions = useMemo(() => {
@@ -271,10 +298,17 @@ export default function Sales() {
                           <td>
                             <Badge tone={statusTone[s.paymentType]}>{t(`payment.${s.paymentType}` as const)}</Badge>
                           </td>
-                          <td className="font-mono text-xs text-fg-muted">{formatDate(s.date)}</td>
+                          <td className="font-mono text-xs text-fg-muted">{fmtDate(s.date)}</td>
                           <td className="text-right whitespace-nowrap">
                             <button className="btn-ghost !py-1.5" onClick={() => setReceipt(s)} title="Print receipt">
                               <Printer className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              className="btn-ghost !py-1.5"
+                              onClick={() => setConfirmRefund(s.id)}
+                              title="Refund"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
                             </button>
                             <button className="btn-ghost !py-1.5 text-negative" onClick={() => setConfirmDel(s.id)}>
                               <Trash2 className="w-3.5 h-3.5" />
@@ -394,6 +428,13 @@ export default function Sales() {
               <span className="text-2xl font-semibold tnum">{formatUZS(cartTotal)}</span>
             </div>
 
+            {creditWarning && (
+              <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs rounded-lg px-3 py-2 tnum">
+                ⚠ {formatUZS(creditWarning.existing)} + {formatUZS(creditWarning.added)} = {formatUZS(creditWarning.existing + creditWarning.added)}
+                {' '}— credit limit {formatUZS(creditWarning.limit)}
+              </div>
+            )}
+
             <Field label={t('common.paymentType')}>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {PAYMENT_TYPES.map(p => (
@@ -434,6 +475,20 @@ export default function Sales() {
             open={!!confirmDel}
             onConfirm={handleDelete}
             onCancel={() => setConfirmDel(null)}
+          />
+
+          <ConfirmDialog
+            open={!!confirmRefund}
+            title="Refund this sale?"
+            message="Stock will be restored and any linked debt removed."
+            onConfirm={() => {
+              if (!confirmRefund) return;
+              refundSale.mutate(confirmRefund, {
+                onSuccess: () => { toast(t('toast.saved')); setConfirmRefund(null); },
+                onError: () => toast(t('toast.error'), 'error'),
+              });
+            }}
+            onCancel={() => setConfirmRefund(null)}
           />
 
           <PrintableSlip

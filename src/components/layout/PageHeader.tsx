@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Menu, Plus } from 'lucide-react';
 import { useT } from '@/i18n/LanguageProvider';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 interface Props {
   title: string;
@@ -32,6 +33,7 @@ export function PageHeader({ title, description, onMenu, onAdd, addLabel, rightS
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {rightSlot}
+        <NotificationBell />
         {onAdd ? (
           <button onClick={onAdd} className="btn-primary">
             <Plus className="w-3.5 h-3.5" />

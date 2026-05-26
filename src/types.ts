@@ -2,11 +2,15 @@ export type PaymentType = 'naqd' | 'karta' | 'qarz' | 'aralash';
 export type ExpenseCategory = 'Ijara' | 'Elektr' | 'Xom ashyo' | 'Maosh' | 'Boshqa';
 export type ActionType = 'sale' | 'expense' | 'production' | 'payment';
 
+export type Currency = 'UZS' | 'USD' | 'RUB' | 'EUR';
+
 export interface Product {
   id: string;
   name: string;
   stock: number;
-  minStock: number;   // alert threshold; default 10
+  minStock: number;
+  vatRate: number;        // 0..100
+  imageUrl?: string;
   createdAt: string;
   lastUpdated: string;
 }
@@ -36,11 +40,19 @@ export interface Sale {
   debtPart?: number;
   note?: string;
   date: string;
+  currency?: Currency;   // defaults to UZS when absent
 }
 
 export interface DebtPayment {
   amount: number;
   date: string;
+}
+
+export interface CustomerCreditLimit {
+  id: string;
+  name: string;
+  phone: string;
+  maxDebt: number;
 }
 
 export interface Debt {
@@ -65,6 +77,27 @@ export interface Expense {
   paymentType: PaymentType;
   date: string;
   auto?: boolean;
+  currency?: Currency;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  note?: string;
+  createdAt: string;
+}
+
+export interface RecurringExpense {
+  id: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  paymentType: PaymentType;
+  dayOfMonth: number;   // 1..28
+  active: boolean;
+  lastRunAt?: string;
+  createdAt: string;
 }
 
 export interface WorkerPaymentSnapshot {

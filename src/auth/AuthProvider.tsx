@@ -5,11 +5,18 @@ import type { Role, User } from '@/types';
 
 type SignInError = 'invalid_credentials' | 'email_not_confirmed' | 'unknown';
 type CreateUserError = 'duplicate_email' | 'weak_password' | 'forbidden' | 'unknown';
+type MfaError = 'invalid_code' | 'no_factor' | 'unknown';
+
+export type SignInResult =
+  | { ok: true }
+  | { ok: false; error: SignInError }
+  | { ok: false; mfaRequired: true; factorId: string };
 
 interface AuthContextValue {
   currentUser: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ ok: true } | { ok: false; error: SignInError }>;
+  signIn: (email: string, password: string) => Promise<SignInResult>;
+  verifyMfa: (factorId: string, code: string) => Promise<{ ok: true } | { ok: false; error: MfaError }>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   createUser: (
@@ -109,6 +116,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: 'unknown' };
       }
       if (!data.session) return { ok: false, error: 'unknown' };
+
+      // Detect AAL gap: a verified TOTP factor means we need a code before
+      // we count the session as fully authenticated.
+      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aalData && aalData.currentLevel === 'aal1' && aalData.nextLevel === 'aal2') {
+        const { data: factorsData } = await supabase.auth.mfa.listFactors();
+        const verifiedTotp = factorsData?.totp?.find(f => f.status === 'verified');
+        if (verifiedTotp) {
+          return { ok: false, mfaRequired: true, factorId: verifiedTotp.id };
+        }
+      }
+
+      await refresh();
+      qc.invalidateQueries();
+      return { ok: true };
+    },
+    [qc, refresh],
+  );
+
+  const verifyMfa = useCallback<AuthContextValue['verifyMfa']>(
+    async (factorId, code) => {
+      const { data: chal, error: chalErr } = await supabase.auth.mfa.challenge({ factorId });
+      if (chalErr || !chal) return { ok: false, error: 'no_factor' };
+      const { error: verErr } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: chal.id,
+        code,
+      });
+      if (verErr) return { ok: false, error: 'invalid_code' };
       await refresh();
       qc.invalidateQueries();
       return { ok: true };
@@ -125,65 +161,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * Create a new user. Super admin only.
    *
-   * Implementation note: we call `supabase.auth.signUp()` for the new user.
-   * Side effect: that call signs IN as the new user, which would log out
-   * the current admin. To avoid that, we capture the current session before
-   * signUp and restore it after.
-   *
-   * (A cleaner solution is an edge function using the service role key —
-   * left as a follow-up. This works for an internal admin tool.)
+   * Calls the `create-user` Supabase edge function, which uses the
+   * service-role key (server-side only) to provision the auth user
+   * and bump the profile role. This avoids the session-restore hack
+   * we used initially and avoids signing the current admin out.
    */
   const createUser = useCallback<AuthContextValue['createUser']>(
     async input => {
-      // Capture current session so we can restore it after signUp.
-      const { data: snap } = await supabase.auth.getSession();
-      const prior = snap.session;
-
-      const { data, error } = await supabase.auth.signUp({
-        email: input.email.trim(),
-        password: input.password,
-        options: { data: { name: input.name.trim() } },
+      const { data, error } = await supabase.functions.invoke<{
+        id: string;
+        email: string;
+        name: string;
+        role: Role;
+      } | { error: string; detail?: string }>('create-user', {
+        body: {
+          email: input.email.trim(),
+          password: input.password,
+          name: input.name.trim(),
+          role: input.role,
+        },
       });
-
       if (error) {
-        if (error.message.toLowerCase().includes('user already registered')) {
-          return { ok: false, error: 'duplicate_email' };
-        }
-        if (error.message.toLowerCase().includes('password')) {
-          return { ok: false, error: 'weak_password' };
-        }
+        const msg = (error.message ?? '').toLowerCase();
+        if (msg.includes('already')) return { ok: false, error: 'duplicate_email' };
+        if (msg.includes('password')) return { ok: false, error: 'weak_password' };
         return { ok: false, error: 'unknown' };
       }
-      if (!data.user) return { ok: false, error: 'unknown' };
-
-      // Restore the admin's session if signUp logged the new user in.
-      if (prior) {
-        await supabase.auth.setSession({
-          access_token: prior.access_token,
-          refresh_token: prior.refresh_token,
-        });
+      if (!data || 'error' in data) {
+        const errStr = (data && 'detail' in data ? data.detail : data?.error) ?? '';
+        if (errStr.toLowerCase().includes('already')) return { ok: false, error: 'duplicate_email' };
+        if (errStr.toLowerCase().includes('password')) return { ok: false, error: 'weak_password' };
+        if (data && data.error === 'forbidden') return { ok: false, error: 'forbidden' };
+        return { ok: false, error: 'unknown' };
       }
-
-      // If the requested role is super_admin, promote the new profile.
-      // The default trigger created the profile as 'admin'. (Or 'super_admin'
-      // if this happened to be the first user, which shouldn't happen here
-      // since createUser is only callable when already signed in.)
-      if (input.role === 'super_admin') {
-        const { error: roleErr } = await supabase
-          .from('profiles')
-          .update({ role: 'super_admin' })
-          .eq('id', data.user.id);
-        if (roleErr) {
-          return { ok: false, error: 'forbidden' };
-        }
-      }
-
       const user: User = {
-        id: data.user.id,
-        name: input.name.trim(),
-        email: input.email.trim(),
+        id: data.id,
+        name: data.name,
+        email: data.email,
         password: '',
-        role: input.role,
+        role: data.role,
         createdAt: new Date().toISOString(),
       };
       qc.invalidateQueries({ queryKey: ['users'] });
@@ -215,8 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ currentUser, loading, signIn, signOut, refresh, createUser, hasRole, can }),
-    [currentUser, loading, signIn, signOut, refresh, createUser, hasRole, can],
+    () => ({ currentUser, loading, signIn, verifyMfa, signOut, refresh, createUser, hasRole, can }),
+    [currentUser, loading, signIn, verifyMfa, signOut, refresh, createUser, hasRole, can],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

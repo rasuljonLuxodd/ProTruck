@@ -5,6 +5,7 @@ import type {
   Debt,
   DebtPayment,
   Expense,
+  RecurringExpense,
   Worker,
   WorkerPayment,
   ActionLog,
@@ -23,6 +24,7 @@ const KEYS = {
   actionLogs: 'protrack:actionLogs',
   users: 'protrack:users',
   session: 'protrack:session',
+  recurringExpenses: 'protrack:recurringExpenses',
 } as const;
 
 const DEFAULT_SUPER_ADMIN: Omit<User, 'id' | 'createdAt'> = {
@@ -58,10 +60,11 @@ function nowISO(): string {
 export class LocalStorageRepository implements Repository {
   // -------- products --------
   async listProducts(): Promise<Product[]> {
-    // Backfill minStock for records created before the column existed.
+    // Backfill optional fields for records created before columns existed.
     return read<Product>(KEYS.products).map(p => ({
       ...p,
       minStock: p.minStock ?? 10,
+      vatRate: p.vatRate ?? 0,
     }));
   }
 
@@ -122,6 +125,37 @@ export class LocalStorageRepository implements Repository {
   async deleteSale(id: string): Promise<void> {
     const sales = read<Sale>(KEYS.sales).filter(s => s.id !== id);
     write(KEYS.sales, sales);
+  }
+
+  async refundSale(id: string): Promise<void> {
+    const sales = read<Sale>(KEYS.sales);
+    const sale = sales.find(s => s.id === id);
+    if (!sale) return;
+
+    // Restore stock.
+    const products = read<Product>(KEYS.products);
+    for (const item of sale.items) {
+      const p = products.find(x => x.id === item.productId);
+      if (p) {
+        p.stock += item.quantity;
+        p.lastUpdated = nowISO();
+      }
+    }
+    write(KEYS.products, products);
+
+    // Drop linked debts.
+    write(KEYS.debts, read<Debt>(KEYS.debts).filter(d => d.saleId !== id));
+
+    // Log + delete.
+    const log: ActionLog = {
+      id: uid(),
+      type: 'sale',
+      description: `${sale.customerName} — refund UZS ${sale.total.toLocaleString('en-US').replace(/,/g, ' ')}`,
+      date: nowISO(),
+    };
+    const logs = read<ActionLog>(KEYS.actionLogs);
+    write(KEYS.actionLogs, [log, ...logs].slice(0, 200));
+    write(KEYS.sales, sales.filter(s => s.id !== id));
   }
 
   async executeSale(input: {
@@ -424,5 +458,33 @@ export class LocalStorageRepository implements Repository {
       return;
     }
     localStorage.setItem(KEYS.session, JSON.stringify(session));
+  }
+
+  // -------- recurring expenses --------
+  async listRecurringExpenses(): Promise<RecurringExpense[]> {
+    return read<RecurringExpense>(KEYS.recurringExpenses);
+  }
+
+  async addRecurringExpense(
+    input: Omit<RecurringExpense, 'id' | 'createdAt' | 'lastRunAt'>,
+  ): Promise<RecurringExpense> {
+    const list = read<RecurringExpense>(KEYS.recurringExpenses);
+    const item: RecurringExpense = { ...input, id: uid(), createdAt: nowISO() };
+    list.push(item);
+    write(KEYS.recurringExpenses, list);
+    return item;
+  }
+
+  async updateRecurringExpense(id: string, patch: Partial<RecurringExpense>): Promise<RecurringExpense> {
+    const list = read<RecurringExpense>(KEYS.recurringExpenses);
+    const idx = list.findIndex(x => x.id === id);
+    if (idx < 0) throw new Error('recurring_not_found');
+    list[idx] = { ...list[idx], ...patch };
+    write(KEYS.recurringExpenses, list);
+    return list[idx];
+  }
+
+  async deleteRecurringExpense(id: string): Promise<void> {
+    write(KEYS.recurringExpenses, read<RecurringExpense>(KEYS.recurringExpenses).filter(x => x.id !== id));
   }
 }

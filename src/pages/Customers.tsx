@@ -1,13 +1,18 @@
-import { useMemo, useState } from 'react';
-import { Search, User as UserIcon } from 'lucide-react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Search, User as UserIcon, Shield } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
+import { Field } from '@/components/ui/Field';
 import { useT } from '@/i18n/LanguageProvider';
+import { useToast } from '@/components/ui/Toast';
 import { useSales } from '@/hooks/useSales';
 import { useDebts } from '@/hooks/useDebts';
-import { formatUZS, formatDate } from '@/lib/format';
+import { useCreditLimits, useSetCreditLimit } from '@/hooks/useCreditLimits';
+import { formatUZS } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { cn } from '@/lib/utils';
 
 interface CustomerRow {
@@ -21,10 +26,16 @@ interface CustomerRow {
 
 export default function Customers() {
   const t = useT();
+  const { toast } = useToast();
+  const fmtDate = useFormatDate();
   const { data: sales = [] } = useSales();
   const { data: debts = [] } = useDebts();
+  const { data: limits = [] } = useCreditLimits();
+  const setLimit = useSetCreditLimit();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+  const [limitInput, setLimitInput] = useState(0);
 
   const rows = useMemo<CustomerRow[]>(() => {
     const map = new Map<string, CustomerRow>();
@@ -165,9 +176,34 @@ export default function Customers() {
                         </div>
                         <div className="bg-surface border border-border rounded-lg p-3">
                           <div className="text-[10px] uppercase tracking-wider text-fg-muted">{t('common.date')}</div>
-                          <div className="text-base font-semibold tnum mt-0.5">{formatDate(detail.customer.lastSeen)}</div>
+                          <div className="text-base font-semibold tnum mt-0.5">{fmtDate(detail.customer.lastSeen)}</div>
                         </div>
                       </div>
+
+                      {(() => {
+                        const key = detail.customer.name.trim().toLowerCase();
+                        const existing = limits.find(l => l.name.trim().toLowerCase() === key);
+                        return (
+                          <div className="mt-3 flex items-center justify-between bg-surface border border-border rounded-lg px-3 py-2.5">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Shield className="w-4 h-4 text-fg-muted" />
+                              <span className="text-fg-muted">Credit limit:</span>
+                              <span className="font-semibold tnum">
+                                {existing ? formatUZS(existing.maxDebt) : '—'}
+                              </span>
+                            </div>
+                            <button
+                              className="btn-secondary !py-1 !text-xs"
+                              onClick={() => {
+                                setLimitInput(existing?.maxDebt ?? 0);
+                                setLimitModalOpen(true);
+                              }}
+                            >
+                              {existing ? t('common.edit') : t('common.add')}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="card overflow-hidden">
@@ -179,7 +215,7 @@ export default function Customers() {
                           <li key={s.id} className="px-4 py-2.5 border-b border-border last:border-0 flex items-center justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <div className="text-sm truncate">{s.items.map(i => `${i.productName} ×${i.quantity}`).join(', ')}</div>
-                              <div className="text-xs text-fg-muted tnum">{formatDate(s.date)}</div>
+                              <div className="text-xs text-fg-muted tnum">{fmtDate(s.date)}</div>
                             </div>
                             <div className="text-sm font-semibold tnum">{formatUZS(s.total)}</div>
                           </li>
@@ -197,7 +233,7 @@ export default function Customers() {
                             <li key={d.id} className="px-4 py-2.5 border-b border-border last:border-0 flex items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <div className="text-sm truncate">{d.product}</div>
-                                <div className="text-xs text-fg-muted tnum">{formatDate(d.date)}</div>
+                                <div className="text-xs text-fg-muted tnum">{fmtDate(d.date)}</div>
                               </div>
                               <div className="text-sm font-semibold text-negative tnum">{formatUZS(d.amount)}</div>
                             </li>
@@ -214,6 +250,47 @@ export default function Customers() {
               </div>
             </div>
           )}
+
+          <Modal
+            open={limitModalOpen}
+            onClose={() => setLimitModalOpen(false)}
+            title="Credit limit"
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setLimitModalOpen(false)}>
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={(e: FormEvent | React.MouseEvent) => {
+                    e.preventDefault();
+                    if (!detail?.customer) return;
+                    setLimit.mutate(
+                      { name: detail.customer.name, phone: detail.customer.phone, maxDebt: limitInput },
+                      {
+                        onSuccess: () => { toast(t('toast.saved')); setLimitModalOpen(false); },
+                        onError: () => toast(t('toast.error'), 'error'),
+                      },
+                    );
+                  }}
+                >
+                  {t('common.save')}
+                </button>
+              </>
+            }
+          >
+            <Field label="Max debt (UZS)">
+              <input
+                type="number"
+                min={0}
+                className="input"
+                value={limitInput}
+                onChange={e => setLimitInput(Number(e.target.value))}
+                autoFocus
+              />
+            </Field>
+          </Modal>
         </>
       )}
     </Layout>

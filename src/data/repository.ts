@@ -5,6 +5,7 @@ import type {
   Debt,
   DebtPayment,
   Expense,
+  RecurringExpense,
   Worker,
   WorkerPayment,
   ActionLog,
@@ -49,6 +50,11 @@ export interface Repository {
     note?: string;
     date: string;
   }): Promise<{ saleId: string; debtId?: string; total: number }>;
+  /**
+   * Reverse a sale (refund): restore stock, drop linked debt, log it.
+   * Atomic on Supabase; best-effort on localStorage.
+   */
+  refundSale(id: string): Promise<void>;
   deleteSale(id: string): Promise<void>;
 
   // debts
@@ -63,6 +69,12 @@ export interface Repository {
   addExpense(input: Omit<Expense, 'id'>): Promise<Expense>;
   updateExpense(id: string, patch: Partial<Expense>): Promise<Expense>;
   deleteExpense(id: string): Promise<void>;
+
+  // recurring expenses (rules that auto-create expenses on a monthly cadence)
+  listRecurringExpenses(): Promise<RecurringExpense[]>;
+  addRecurringExpense(input: Omit<RecurringExpense, 'id' | 'createdAt' | 'lastRunAt'>): Promise<RecurringExpense>;
+  updateRecurringExpense(id: string, patch: Partial<RecurringExpense>): Promise<RecurringExpense>;
+  deleteRecurringExpense(id: string): Promise<void>;
 
   // workers
   listWorkers(): Promise<Worker[]>;

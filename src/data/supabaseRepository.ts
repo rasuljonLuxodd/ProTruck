@@ -5,6 +5,7 @@ import type {
   Debt,
   DebtPayment,
   Expense,
+  RecurringExpense,
   Worker,
   WorkerPayment,
   ActionLog,
@@ -20,6 +21,8 @@ interface ProductRow {
   name: string;
   stock: number;
   min_stock: number;
+  vat_rate: number;
+  image_url: string | null;
   created_at: string;
   last_updated: string;
 }
@@ -108,6 +111,8 @@ const mapProduct = (r: ProductRow): Product => ({
   name: r.name,
   stock: r.stock,
   minStock: r.min_stock ?? 10,
+  vatRate: Number(r.vat_rate ?? 0),
+  imageUrl: r.image_url ?? undefined,
   createdAt: r.created_at,
   lastUpdated: r.last_updated,
 });
@@ -212,6 +217,8 @@ export class SupabaseRepository implements Repository {
         name: input.name,
         stock: input.stock,
         min_stock: input.minStock ?? 10,
+        vat_rate: input.vatRate ?? 0,
+        image_url: input.imageUrl ?? null,
       })
       .select()
       .single();
@@ -223,6 +230,8 @@ export class SupabaseRepository implements Repository {
     if (patch.name !== undefined) payload.name = patch.name;
     if (patch.stock !== undefined) payload.stock = patch.stock;
     if (patch.minStock !== undefined) payload.min_stock = patch.minStock;
+    if (patch.vatRate !== undefined) payload.vat_rate = patch.vatRate;
+    if (patch.imageUrl !== undefined) payload.image_url = patch.imageUrl;
 
     const { data, error } = await supabase
       .from('products')
@@ -287,6 +296,11 @@ export class SupabaseRepository implements Repository {
   async deleteSale(id: string): Promise<void> {
     const { error } = await supabase.from('sales').delete().eq('id', id);
     if (error) throw new Error(`deleteSale: ${error.message}`);
+  }
+
+  async refundSale(id: string): Promise<void> {
+    const { error } = await supabase.rpc('refund_sale', { p_sale_id: id });
+    if (error) throw new Error(`refundSale: ${error.message}`);
   }
 
   async executeSale(input: {
@@ -459,6 +473,88 @@ export class SupabaseRepository implements Repository {
   async deleteExpense(id: string): Promise<void> {
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (error) throw new Error(`deleteExpense: ${error.message}`);
+  }
+
+  // ============== recurring expenses ==============
+  async listRecurringExpenses(): Promise<RecurringExpense[]> {
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .select('*')
+      .order('day_of_month', { ascending: true });
+    if (error) throw new Error(`listRecurringExpenses: ${error.message}`);
+    return (data ?? []).map(r => ({
+      id: r.id,
+      category: r.category,
+      description: r.description,
+      amount: Number(r.amount),
+      paymentType: r.payment_type,
+      dayOfMonth: r.day_of_month,
+      active: r.active,
+      lastRunAt: r.last_run_at ?? undefined,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async addRecurringExpense(
+    input: Omit<RecurringExpense, 'id' | 'createdAt' | 'lastRunAt'>,
+  ): Promise<RecurringExpense> {
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .insert({
+        category: input.category,
+        description: input.description,
+        amount: input.amount,
+        payment_type: input.paymentType,
+        day_of_month: input.dayOfMonth,
+        active: input.active,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(`addRecurringExpense: ${error.message}`);
+    return {
+      id: data.id,
+      category: data.category,
+      description: data.description,
+      amount: Number(data.amount),
+      paymentType: data.payment_type,
+      dayOfMonth: data.day_of_month,
+      active: data.active,
+      lastRunAt: data.last_run_at ?? undefined,
+      createdAt: data.created_at,
+    };
+  }
+
+  async updateRecurringExpense(id: string, patch: Partial<RecurringExpense>): Promise<RecurringExpense> {
+    const payload: Record<string, unknown> = {};
+    if (patch.category    !== undefined) payload.category     = patch.category;
+    if (patch.description !== undefined) payload.description  = patch.description;
+    if (patch.amount      !== undefined) payload.amount       = patch.amount;
+    if (patch.paymentType !== undefined) payload.payment_type = patch.paymentType;
+    if (patch.dayOfMonth  !== undefined) payload.day_of_month = patch.dayOfMonth;
+    if (patch.active      !== undefined) payload.active       = patch.active;
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw new Error(`updateRecurringExpense: ${error.message}`);
+    return {
+      id: data.id,
+      category: data.category,
+      description: data.description,
+      amount: Number(data.amount),
+      paymentType: data.payment_type,
+      dayOfMonth: data.day_of_month,
+      active: data.active,
+      lastRunAt: data.last_run_at ?? undefined,
+      createdAt: data.created_at,
+    };
+  }
+
+  async deleteRecurringExpense(id: string): Promise<void> {
+    const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
+    if (error) throw new Error(`deleteRecurringExpense: ${error.message}`);
   }
 
   // ============== workers ==============

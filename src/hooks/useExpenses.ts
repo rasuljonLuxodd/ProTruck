@@ -14,7 +14,15 @@ export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: Omit<Expense, 'id'>) => repo.addExpense(input),
-    onSuccess: () => {
+    onMutate: async input => {
+      await qc.cancelQueries({ queryKey: KEY });
+      const previous = qc.getQueryData<Expense[]>(KEY);
+      const placeholder: Expense = { ...input, id: `optimistic-${crypto.randomUUID()}` };
+      qc.setQueryData<Expense[]>(KEY, prev => [placeholder, ...(prev ?? [])]);
+      return { previous };
+    },
+    onError: (_e, _i, ctx) => { if (ctx?.previous) qc.setQueryData(KEY, ctx.previous); },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ['actionLogs'] });
     },

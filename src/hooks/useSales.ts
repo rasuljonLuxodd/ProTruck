@@ -56,3 +56,17 @@ export function useDeleteSale() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+export function useRefundSale() {
+  const repo = useRepository();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => repo.refundSale(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['debts'] });
+      qc.invalidateQueries({ queryKey: ['actionLogs'] });
+    },
+  });
+}

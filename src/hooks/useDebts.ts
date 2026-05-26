@@ -15,7 +15,20 @@ export function useAddDebt() {
   return useMutation({
     mutationFn: (input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number }) =>
       repo.addDebt(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onMutate: async input => {
+      await qc.cancelQueries({ queryKey: KEY });
+      const previous = qc.getQueryData<Debt[]>(KEY);
+      const placeholder: Debt = {
+        ...input,
+        id: `optimistic-${crypto.randomUUID()}`,
+        originalAmount: input.originalAmount ?? input.amount,
+        payments: [],
+      };
+      qc.setQueryData<Debt[]>(KEY, prev => [placeholder, ...(prev ?? [])]);
+      return { previous };
+    },
+    onError: (_e, _i, ctx) => { if (ctx?.previous) qc.setQueryData(KEY, ctx.previous); },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
 

@@ -9,6 +9,27 @@ export function formatUZS(value: number | undefined | null): string {
   return `${sign}UZS ${absStr}`;
 }
 
+/**
+ * Display money in any supported currency. UZS uses the existing whole-unit
+ * style; USD/EUR/RUB use Intl.NumberFormat with two decimals.
+ */
+export function formatMoney(
+  value: number | undefined | null,
+  currency: 'UZS' | 'USD' | 'RUB' | 'EUR' = 'UZS',
+): string {
+  if (currency === 'UZS') return formatUZS(value);
+  const n = Number(value ?? 0);
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(isFinite(n) ? n : 0);
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
+  }
+}
+
 export function formatNumber(value: number | undefined | null): string {
   const n = Number(value ?? 0);
   if (!isFinite(n)) return '0';

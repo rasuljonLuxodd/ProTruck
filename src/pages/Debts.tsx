@@ -12,11 +12,13 @@ import { useToast } from '@/components/ui/Toast';
 import { useDebts, useAddDebt, usePayDebtPartial, usePayDebtFull, useDeleteDebt } from '@/hooks/useDebts';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, daysBetween, toInputDate, fromInputDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import type { Debt } from '@/types';
 
 export default function Debts() {
   const t = useT();
+  const fmtDate = useFormatDate();
   const { toast } = useToast();
   const { data: debts = [] } = useDebts();
   const addDebt = useAddDebt();
@@ -197,7 +199,7 @@ export default function Debts() {
                         <td className="max-w-[240px] truncate">{d.product}</td>
                         <td className="text-right text-negative font-semibold">{formatUZS(d.amount)}</td>
                         <td className="font-mono text-xs text-fg-muted">
-                          {formatDate(d.date)}
+                          {fmtDate(d.date)}
                           <div className="text-[10px] mt-0.5">{daysBetween(d.date)} {t('debts.daysPassed')}</div>
                         </td>
                         <td className="text-right space-x-1 whitespace-nowrap">

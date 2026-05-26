@@ -20,7 +20,7 @@ export default function Login() {
   const t = useT();
   const { lang, setLang } = useLanguage();
   const { theme, toggle } = useTheme();
-  const { signIn, currentUser, refresh } = useAuth();
+  const { signIn, verifyMfa, currentUser, refresh } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
@@ -34,6 +34,10 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // MFA state — if signIn returns mfaRequired, we ask for the 6-digit code.
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
 
   // First-time? Detect whether any profile exists. If not, force signup mode.
   useEffect(() => {
@@ -62,8 +66,26 @@ export default function Login() {
     setBusy(false);
     if (result.ok) {
       navigate(from, { replace: true });
+    } else if ('mfaRequired' in result) {
+      setMfaFactorId(result.factorId);
+      setError(null);
     } else {
       setError(t('auth.invalid'));
+    }
+  }
+
+  async function handleMfaVerify(e: FormEvent) {
+    e.preventDefault();
+    if (!mfaFactorId) return;
+    setError(null);
+    setBusy(true);
+    const result = await verifyMfa(mfaFactorId, mfaCode);
+    setBusy(false);
+    if (result.ok) {
+      navigate(from, { replace: true });
+    } else {
+      setError(t('set.mfaInvalid'));
+      setMfaCode('');
     }
   }
 
@@ -95,7 +117,8 @@ export default function Login() {
   }
 
   const isSignUp = mode === 'signup';
-  const submit = isSignUp ? handleSignUp : handleSignIn;
+  const isMfa = !!mfaFactorId;
+  const submit = isMfa ? handleMfaVerify : isSignUp ? handleSignUp : handleSignIn;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -129,15 +152,36 @@ export default function Login() {
         <div className="w-full max-w-[400px]">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {isSignUp ? t('auth.signUpTitle') : t('auth.signInTitle')}
+              {isMfa ? t('set.mfaTitle')
+                : isSignUp ? t('auth.signUpTitle')
+                : t('auth.signInTitle')}
             </h1>
             <p className="mt-1.5 text-sm text-fg-muted">
-              {isSignUp ? t('auth.signUpSubtitle') : t('auth.signInSubtitle')}
+              {isMfa ? t('set.mfaScan')
+                : isSignUp ? t('auth.signUpSubtitle')
+                : t('auth.signInSubtitle')}
             </p>
           </div>
 
           <form onSubmit={submit} className="space-y-4">
-            {isSignUp && (
+            {isMfa ? (
+              <div>
+                <label className="label">{t('set.mfaCode')}</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  className="input tnum text-center text-lg tracking-widest"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                />
+              </div>
+            ) : null}
+
+            {!isMfa && isSignUp && (
               <div>
                 <label className="label">{t('auth.name')}</label>
                 <div className="relative">
@@ -154,6 +198,7 @@ export default function Login() {
               </div>
             )}
 
+            {!isMfa && (
             <div>
               <label className="label">{t('auth.email')}</label>
               <div className="relative">
@@ -169,7 +214,9 @@ export default function Login() {
                 />
               </div>
             </div>
+            )}
 
+            {!isMfa && (
             <div>
               <label className="label">{t('auth.password')}</label>
               <div className="relative">
@@ -193,6 +240,7 @@ export default function Login() {
                 </button>
               </div>
             </div>
+            )}
 
             {error && (
               <div className="text-sm text-negative bg-negative/5 border border-negative/20 rounded-lg px-3 py-2">
@@ -200,11 +248,11 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" className="btn-primary w-full" disabled={busy}>
-              {busy ? '…' : isSignUp ? t('auth.signUp') : t('auth.signIn')}
+            <button type="submit" className="btn-primary w-full" disabled={busy || (isMfa && mfaCode.length !== 6)}>
+              {busy ? '…' : isMfa ? t('set.mfaVerify') : isSignUp ? t('auth.signUp') : t('auth.signIn')}
             </button>
 
-            {!isSignUp && hasAnyUser && (
+            {!isMfa && !isSignUp && hasAnyUser && (
               <div className="text-center">
                 <Link
                   to="/forgot-password"

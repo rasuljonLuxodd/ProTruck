@@ -22,7 +22,8 @@ import {
   netProfit,
   top3Products,
 } from '@/lib/calc';
-import { formatUZS, percentChange, formatDate } from '@/lib/format';
+import { formatUZS, percentChange } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import type { ActionType } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,7 @@ const actionDot: Record<ActionType, string> = {
 
 export default function Dashboard() {
   const t = useT();
+  const fmtDate = useFormatDate();
   const salesQ = useSales();
   const debtsQ = useDebts();
   const expensesQ = useExpenses();
@@ -273,7 +275,7 @@ export default function Dashboard() {
                     {a.userName ? (
                       <span className="text-xs text-fg-muted hidden sm:inline">— {a.userName}</span>
                     ) : null}
-                    <span className="text-xs text-fg-subtle tnum">{formatDate(a.date)}</span>
+                    <span className="text-xs text-fg-subtle tnum">{fmtDate(a.date)}</span>
                   </li>
                 ))}
               </ul>
