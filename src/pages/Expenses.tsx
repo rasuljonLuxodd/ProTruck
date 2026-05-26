@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useRecurringExpenses';
 import { useSuppliers, useAddSupplier } from '@/hooks/useSuppliers';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { Select } from '@/components/ui/Select';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
@@ -188,16 +189,15 @@ export default function Expenses() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            <select
-              className="input sm:w-48"
+            <Select
+              className="sm:w-52"
               value={filterCat}
-              onChange={e => setFilterCat(e.target.value as ExpenseCategory | 'all')}
-            >
-              <option value="all">{t('common.all')}</option>
-              {CATEGORIES.map(c => (
-                <option key={c} value={c}>{t(`expCat.${c}` as TranslationKey)}</option>
-              ))}
-            </select>
+              onChange={setFilterCat}
+              options={[
+                { value: 'all' as const, label: t('common.all') },
+                ...CATEGORIES.map(c => ({ value: c, label: t(`expCat.${c}` as TranslationKey) })),
+              ]}
+            />
             <input
               className="input sm:w-48"
               type="month"
@@ -273,11 +273,11 @@ export default function Expenses() {
             }
           >
             <Field label={t('common.category')}>
-              <select className="input" value={category} onChange={e => setCategory(e.target.value as ExpenseCategory)}>
-                {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{t(`expCat.${c}` as TranslationKey)}</option>
-                ))}
-              </select>
+              <Select
+                value={category}
+                onChange={setCategory}
+                options={CATEGORIES.map(c => ({ value: c, label: t(`expCat.${c}` as TranslationKey) }))}
+              />
             </Field>
             <Field label={t('common.description')}>
               <input className="input" value={description} onChange={e => setDescription(e.target.value)} />
@@ -291,22 +291,23 @@ export default function Expenses() {
               </Field>
             </div>
             <Field label={t('common.paymentType')}>
-              <select className="input" value={paymentType} onChange={e => setPaymentType(e.target.value as PaymentType)}>
-                {PAYMENT_TYPES.map(p => (
-                  <option key={p} value={p}>{t(`payment.${p}` as TranslationKey)}</option>
-                ))}
-              </select>
+              <Select
+                value={paymentType}
+                onChange={setPaymentType}
+                options={PAYMENT_TYPES.map(p => ({ value: p, label: t(`payment.${p}` as TranslationKey) }))}
+              />
             </Field>
 
             {category === 'Xom ashyo' && (
               <Field label="Supplier">
                 <div className="flex gap-2">
-                  <select className="input flex-1" value="" onChange={() => { /* TODO: persist supplier_id */ }}>
-                    <option value="">—</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  <Select
+                    className="flex-1"
+                    value=""
+                    onChange={() => { /* TODO: persist supplier_id on the expense */ }}
+                    placeholder="—"
+                    options={suppliers.map(s => ({ value: s.id, label: s.name }))}
+                  />
                   <input
                     className="input flex-1"
                     placeholder="+ new supplier"
@@ -463,9 +464,11 @@ function RecurringSection() {
         }
       >
         <Field label={t('common.category')}>
-          <select className="input" value={category} onChange={e => setCategory(e.target.value as ExpenseCategory)}>
-            {CATEGORIES.map(c => (<option key={c} value={c}>{t(`expCat.${c}` as TranslationKey)}</option>))}
-          </select>
+          <Select
+            value={category}
+            onChange={setCategory}
+            options={CATEGORIES.map(c => ({ value: c, label: t(`expCat.${c}` as TranslationKey) }))}
+          />
         </Field>
         <Field label={t('common.description')}>
           <input className="input" value={description} onChange={e => setDescription(e.target.value)} />
@@ -479,9 +482,11 @@ function RecurringSection() {
           </Field>
         </div>
         <Field label={t('common.paymentType')}>
-          <select className="input" value={paymentType} onChange={e => setPaymentType(e.target.value as PaymentType)}>
-            {PAYMENT_TYPES.map(p => (<option key={p} value={p}>{t(`payment.${p}` as TranslationKey)}</option>))}
-          </select>
+          <Select
+            value={paymentType}
+            onChange={setPaymentType}
+            options={PAYMENT_TYPES.map(p => ({ value: p, label: t(`payment.${p}` as TranslationKey) }))}
+          />
         </Field>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />

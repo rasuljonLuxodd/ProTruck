@@ -14,6 +14,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useUsers, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 import { supabase } from '@/data/supabaseClient';
 import { TwoFactorSection } from '@/components/settings/TwoFactorSection';
+import { Select } from '@/components/ui/Select';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Language, Role, User } from '@/types';
@@ -455,10 +456,14 @@ function UsersSection() {
             </Field>
           )}
           <Field label={t('set.role')}>
-            <select className="input" value={role} onChange={e => setRole(e.target.value as Role)}>
-              <option value="admin">{t('role.admin')}</option>
-              <option value="super_admin">{t('role.super_admin')}</option>
-            </select>
+            <Select
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: 'admin' as const,       label: t('role.admin') },
+                { value: 'super_admin' as const, label: t('role.super_admin') },
+              ]}
+            />
           </Field>
         </form>
       </Modal>

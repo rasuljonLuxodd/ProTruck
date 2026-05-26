@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { Select } from '@/components/ui/Select';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useSales, useDeleteSale, useExecuteSale, useRefundSale } from '@/hooks/useSales';
@@ -251,16 +252,15 @@ export default function Sales() {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            <select
-              className="input sm:w-48"
+            <Select
+              className="sm:w-52"
               value={filterPayment}
-              onChange={e => setFilterPayment(e.target.value as PaymentType | 'all')}
-            >
-              <option value="all">{t('common.all')}</option>
-              {PAYMENT_TYPES.map(p => (
-                <option key={p} value={p}>{t(`payment.${p}` as const)}</option>
-              ))}
-            </select>
+              onChange={setFilterPayment}
+              options={[
+                { value: 'all' as const, label: t('common.all') },
+                ...PAYMENT_TYPES.map(p => ({ value: p, label: t(`payment.${p}` as const) })),
+              ]}
+            />
           </div>
 
           {sales.length === 0 ? (
@@ -373,12 +373,16 @@ export default function Sales() {
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-5">
                 <Field label={t('common.product')}>
-                  <select className="input" value={pickProductId} onChange={e => setPickProductId(e.target.value)}>
-                    <option value="">{t('sales.selectProduct')}</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.stock})</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={pickProductId}
+                    onChange={setPickProductId}
+                    placeholder={t('sales.selectProduct')}
+                    options={products.map(p => ({
+                      value: p.id,
+                      label: p.name,
+                      hint: String(p.stock),
+                    }))}
+                  />
                 </Field>
               </div>
               <div className="col-span-3">

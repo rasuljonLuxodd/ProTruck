@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { Select } from '@/components/ui/Select';
 import { supabase } from '@/data/supabaseClient';
 import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/i18n/LanguageProvider';
@@ -375,7 +376,7 @@ export default function Workers() {
             open={newOpen}
             onClose={() => setNewOpen(false)}
             title={t('wrk.newTitle')}
-            size="sm"
+            size="md"
             footer={
               <>
                 <button className="btn-secondary" onClick={() => setNewOpen(false)} disabled={addWorker.isPending}>
@@ -410,7 +411,7 @@ export default function Workers() {
             open={!!bonusFor}
             onClose={() => setBonusFor(null)}
             title={t('wrk.bonusTitle')}
-            size="sm"
+            size="md"
             footer={
               <>
                 <button className="btn-secondary" onClick={() => setBonusFor(null)}>{t('common.cancel')}</button>
@@ -428,7 +429,7 @@ export default function Workers() {
             open={!!penaltyFor}
             onClose={() => setPenaltyFor(null)}
             title={t('wrk.penaltyTitle')}
-            size="sm"
+            size="md"
             footer={
               <>
                 <button className="btn-secondary" onClick={() => setPenaltyFor(null)}>{t('common.cancel')}</button>
@@ -446,7 +447,7 @@ export default function Workers() {
             open={advanceOpen}
             onClose={() => setAdvanceOpen(false)}
             title={t('wrk.advanceTitle')}
-            size="sm"
+            size="md"
             footer={
               <>
                 <button className="btn-secondary" onClick={() => setAdvanceOpen(false)}>{t('common.cancel')}</button>
@@ -455,10 +456,16 @@ export default function Workers() {
             }
           >
             <Field label={t('wrk.pickWorker')}>
-              <select className="input" value={advanceWorkerId} onChange={e => setAdvanceWorkerId(e.target.value)}>
-                <option value="">—</option>
-                {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
+              <Select
+                value={advanceWorkerId}
+                onChange={setAdvanceWorkerId}
+                placeholder={t('wrk.pickWorker')}
+                options={workers.map(w => ({
+                  value: w.id,
+                  label: w.name,
+                  hint: formatUZS(w.monthlySalary),
+                }))}
+              />
             </Field>
             <Field label={t('common.amount')}>
               <MoneyInput value={advanceAmount} onChange={setAdvanceAmount} placeholder="0" />
@@ -469,7 +476,7 @@ export default function Workers() {
             open={!!payFor}
             onClose={() => setPayFor(null)}
             title={t('wrk.payTitle')}
-            size="sm"
+            size="md"
             footer={
               <>
                 <button className="btn-secondary" onClick={() => setPayFor(null)}>{t('common.cancel')}</button>
