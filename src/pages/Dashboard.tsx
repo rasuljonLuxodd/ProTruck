@@ -1,0 +1,228 @@
+import { useMemo } from 'react';
+import { Wallet, ShoppingCart, CreditCard, TrendingUp } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
+import { Layout } from '@/components/layout/Layout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { StatCard } from '@/components/ui/StatCard';
+import { useT } from '@/i18n/LanguageProvider';
+import { useSales } from '@/hooks/useSales';
+import { useDebts } from '@/hooks/useDebts';
+import { useExpenses } from '@/hooks/useExpenses';
+import { useProductionLogs } from '@/hooks/useProductionLogs';
+import { useActionLogs } from '@/hooks/useActionLogs';
+import {
+  actualCashIncome,
+  expenseTotal,
+  inMonth,
+  isSameDay,
+  last7DaysSeries,
+  netProfit,
+  top3Products,
+} from '@/lib/calc';
+import { formatUZS, percentChange, formatDate } from '@/lib/format';
+import type { ActionType } from '@/types';
+import { cn } from '@/lib/utils';
+
+const actionDot: Record<ActionType, string> = {
+  sale: 'bg-positive',
+  expense: 'bg-negative',
+  production: 'bg-fg',
+  payment: 'bg-amber-500',
+};
+
+export default function Dashboard() {
+  const t = useT();
+  const { data: sales = [] } = useSales();
+  const { data: debts = [] } = useDebts();
+  const { data: expenses = [] } = useExpenses();
+  const { data: production = [] } = useProductionLogs();
+  const { data: actions = [] } = useActionLogs();
+
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const totalIncome = useMemo(() => actualCashIncome(sales), [sales]);
+  const prevIncome = useMemo(
+    () => actualCashIncome(sales.filter(s => inMonth(s.date, last.getFullYear(), last.getMonth()))),
+    [sales, last],
+  );
+  const todaySales = useMemo(
+    () => sales.filter(s => isSameDay(s.date, now.toISOString())).reduce((a, s) => a + s.total, 0),
+    [sales, now],
+  );
+  const yesterdaySales = useMemo(() => {
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    return sales.filter(s => isSameDay(s.date, y.toISOString())).reduce((a, s) => a + s.total, 0);
+  }, [sales, now]);
+
+  const totalDebt = useMemo(() => debts.reduce((a, d) => a + d.amount, 0), [debts]);
+  const prevDebt = useMemo(
+    () =>
+      debts
+        .filter(d => inMonth(d.date, last.getFullYear(), last.getMonth()))
+        .reduce((a, d) => a + d.originalAmount, 0),
+    [debts, last],
+  );
+
+  const profit = useMemo(() => netProfit(sales, expenses), [sales, expenses]);
+  const prevProfit = useMemo(() => {
+    const ms = sales.filter(s => inMonth(s.date, last.getFullYear(), last.getMonth()));
+    const me = expenses.filter(e => inMonth(e.date, last.getFullYear(), last.getMonth()));
+    return actualCashIncome(ms) - expenseTotal(me);
+  }, [sales, expenses, last]);
+
+  const series = useMemo(() => last7DaysSeries(sales, production), [sales, production]);
+  const top3 = useMemo(() => top3Products(sales), [sales]);
+  const recent = actions.slice(0, 10);
+
+  return (
+    <Layout>
+      {({ openMenu }) => (
+        <>
+          <PageHeader title={t('nav.dashboard')} onMenu={openMenu} />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <StatCard
+              title={t('dash.totalIncome')}
+              value={formatUZS(totalIncome)}
+              icon={Wallet}
+              change={percentChange(totalIncome, prevIncome)}
+              changeLabel={t('dash.vsLastMonth')}
+            />
+            <StatCard
+              title={t('dash.todaySales')}
+              value={formatUZS(todaySales)}
+              icon={ShoppingCart}
+              change={percentChange(todaySales, yesterdaySales)}
+            />
+            <StatCard
+              title={t('dash.totalDebt')}
+              value={formatUZS(totalDebt)}
+              icon={CreditCard}
+              tone="negative"
+              change={percentChange(totalDebt, prevDebt)}
+              changeLabel={t('dash.vsLastMonth')}
+            />
+            <StatCard
+              title={t('dash.netProfit')}
+              value={formatUZS(profit)}
+              icon={TrendingUp}
+              tone={profit >= 0 ? 'positive' : 'negative'}
+              change={percentChange(profit, prevProfit)}
+              changeLabel={t('dash.vsLastMonth')}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
+            <div className="card p-5 xl:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold">{t('dash.last7')}</h2>
+              </div>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      stroke="rgb(var(--fg-muted))"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="rgb(var(--fg-muted))"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      width={56}
+                      tickFormatter={v => {
+                        if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+                        if (Math.abs(v) >= 1_000) return `${Math.round(v / 1_000)}K`;
+                        return String(v);
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'rgb(var(--bg))',
+                        border: '1px solid rgb(var(--border))',
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                    />
+                    <Legend
+                      iconType="plainline"
+                      wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="sales"
+                      name={t('dash.salesLine')}
+                      stroke="rgb(var(--fg))"
+                      strokeWidth={2}
+                      dot={{ r: 3, strokeWidth: 0, fill: 'rgb(var(--fg))' }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="production"
+                      name={t('dash.productionLine')}
+                      stroke="rgb(var(--fg-muted))"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={{ r: 3, strokeWidth: 0, fill: 'rgb(var(--fg-muted))' }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-4">{t('dash.top3')}</h2>
+              {top3.length === 0 ? (
+                <p className="text-sm text-fg-subtle">{t('common.empty')}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {top3.map((p, i) => (
+                    <li key={p.name} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-surface-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-5 h-5 rounded-md bg-bg border border-border flex items-center justify-center text-[11px] font-semibold tnum">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-medium truncate">{p.name}</span>
+                      </div>
+                      <span className="text-sm font-semibold tnum">{p.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="card mt-4">
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="text-sm font-semibold">{t('dash.recent')}</h2>
+            </div>
+            {recent.length === 0 ? (
+              <p className="px-5 py-8 text-sm text-fg-subtle text-center">{t('common.empty')}</p>
+            ) : (
+              <ul>
+                {recent.map(a => (
+                  <li
+                    key={a.id}
+                    className="flex items-center gap-3 px-5 py-2.5 border-b border-border last:border-0"
+                  >
+                    <span className={cn('w-2 h-2 rounded-full shrink-0', actionDot[a.type])} />
+                    <span className="flex-1 text-sm truncate">{a.description}</span>
+                    <span className="text-xs text-fg-subtle tnum">{formatDate(a.date)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </Layout>
+  );
+}

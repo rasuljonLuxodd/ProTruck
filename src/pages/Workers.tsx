@@ -1,0 +1,476 @@
+import { useMemo, useState } from 'react';
+import { Plus, Minus, Eye, Trash2, Wallet } from 'lucide-react';
+import { Layout } from '@/components/layout/Layout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Modal } from '@/components/ui/Modal';
+import { Field } from '@/components/ui/Field';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useT } from '@/i18n/LanguageProvider';
+import { useToast } from '@/components/ui/Toast';
+import {
+  useWorkers, useAddWorker, useUpdateWorker, useDeleteWorker, usePayWorker,
+} from '@/hooks/useWorkers';
+import { useAddExpense } from '@/hooks/useExpenses';
+import { useAddActionLog } from '@/hooks/useActionLogs';
+import { formatUZS, formatDate } from '@/lib/format';
+import { workerPayoutDue } from '@/lib/calc';
+import { cn } from '@/lib/utils';
+import type { PaymentType, Worker } from '@/types';
+import type { TranslationKey } from '@/i18n/translations';
+
+const PAYMENT_TYPES: PaymentType[] = ['naqd', 'karta', 'qarz', 'aralash'];
+
+function initials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
+}
+
+export default function Workers() {
+  const t = useT();
+  const { toast } = useToast();
+  const { data: workers = [] } = useWorkers();
+  const addWorker = useAddWorker();
+  const updWorker = useUpdateWorker();
+  const delWorker = useDeleteWorker();
+  const payWorker = usePayWorker();
+  const addExpense = useAddExpense();
+  const addAction = useAddActionLog();
+
+  const [newOpen, setNewOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [salary, setSalary] = useState(0);
+
+  const [bonusFor, setBonusFor] = useState<Worker | null>(null);
+  const [bonusAmount, setBonusAmount] = useState(0);
+
+  const [penaltyFor, setPenaltyFor] = useState<Worker | null>(null);
+  const [penaltyAmount, setPenaltyAmount] = useState(0);
+
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [advanceWorkerId, setAdvanceWorkerId] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState(0);
+
+  const [payFor, setPayFor] = useState<Worker | null>(null);
+  const [payAmount, setPayAmount] = useState(0);
+  const [payType, setPayType] = useState<PaymentType>('naqd');
+  const [payNote, setPayNote] = useState('');
+
+  const [viewFor, setViewFor] = useState<Worker | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+
+  const monthLabel = useMemo(() => {
+    const m = new Date().getMonth() + 1;
+    return t(`month.${m}` as TranslationKey);
+  }, [t]);
+
+  const totalAdvances = workers.reduce((a, w) => a + w.advance, 0);
+
+  function adjustDays(w: Worker, delta: number) {
+    const next = Math.min(30, Math.max(0, w.workDays + delta));
+    if (next === w.workDays) return;
+    updWorker.mutate({ id: w.id, patch: { workDays: next } });
+  }
+
+  function addNewWorker() {
+    if (!name.trim() || salary <= 0) return;
+    addWorker.mutate(
+      { name: name.trim(), monthlySalary: salary },
+      { onSuccess: () => { toast(t('toast.saved')); setNewOpen(false); setName(''); setSalary(0); } },
+    );
+  }
+
+  function saveBonus() {
+    if (!bonusFor || bonusAmount <= 0) return;
+    updWorker.mutate(
+      { id: bonusFor.id, patch: { bonus: bonusFor.bonus + bonusAmount } },
+      { onSuccess: () => { toast(t('toast.saved')); setBonusFor(null); setBonusAmount(0); } },
+    );
+  }
+
+  function savePenalty() {
+    if (!penaltyFor || penaltyAmount <= 0) return;
+    updWorker.mutate(
+      { id: penaltyFor.id, patch: { penalty: penaltyFor.penalty + penaltyAmount } },
+      { onSuccess: () => { toast(t('toast.saved')); setPenaltyFor(null); setPenaltyAmount(0); } },
+    );
+  }
+
+  function saveAdvance() {
+    const worker = workers.find(w => w.id === advanceWorkerId);
+    if (!worker || advanceAmount <= 0) return;
+    updWorker.mutate(
+      { id: worker.id, patch: { advance: worker.advance + advanceAmount } },
+      {
+        onSuccess: () => {
+          addExpense.mutate({
+            category: 'Boshqa',
+            description: `${t('wrk.advanceExpense')}: ${worker.name}`,
+            amount: advanceAmount,
+            paymentType: 'naqd',
+            date: new Date().toISOString(),
+            auto: true,
+          });
+          addAction.mutate({
+            type: 'payment',
+            description: `${t('wrk.advanceExpense')}: ${worker.name} — ${formatUZS(advanceAmount)}`,
+            date: new Date().toISOString(),
+          });
+          toast(t('toast.saved'));
+          setAdvanceOpen(false);
+          setAdvanceWorkerId('');
+          setAdvanceAmount(0);
+        },
+      },
+    );
+  }
+
+  function savePayment() {
+    if (!payFor || payAmount <= 0) return;
+    const snapshot = {
+      workDays: payFor.workDays,
+      bonus: payFor.bonus,
+      penalty: payFor.penalty,
+      advance: payFor.advance,
+      salary: payFor.monthlySalary,
+    };
+    payWorker.mutate(
+      {
+        id: payFor.id,
+        payment: {
+          amount: payAmount,
+          paymentType: payType,
+          note: payNote.trim() || undefined,
+          date: new Date().toISOString(),
+          snapshot,
+        },
+      },
+      {
+        onSuccess: () => {
+          addExpense.mutate({
+            category: 'Maosh',
+            description: `${t('wrk.salaryExpense')}: ${payFor.name}`,
+            amount: payAmount,
+            paymentType: payType,
+            date: new Date().toISOString(),
+            auto: true,
+          });
+          addAction.mutate({
+            type: 'payment',
+            description: `${t('wrk.salaryExpense')}: ${payFor.name} — ${formatUZS(payAmount)}`,
+            date: new Date().toISOString(),
+          });
+          toast(t('toast.paid'));
+          setPayFor(null); setPayAmount(0); setPayType('naqd'); setPayNote('');
+        },
+      },
+    );
+  }
+
+  function handleDelete() {
+    if (!confirmDel) return;
+    delWorker.mutate(confirmDel, { onSuccess: () => { toast(t('toast.deleted')); setConfirmDel(null); } });
+  }
+
+  return (
+    <Layout>
+      {({ openMenu }) => (
+        <>
+          <PageHeader
+            title={t('nav.workers')}
+            onMenu={openMenu}
+            onAdd={() => { setName(''); setSalary(0); setNewOpen(true); }}
+          />
+
+          <div className="card p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap gap-6">
+              <div>
+                <div className="text-xs text-fg-muted">{t('wrk.currentMonth')}</div>
+                <div className="text-base font-semibold mt-0.5">{monthLabel}</div>
+              </div>
+              <div>
+                <div className="text-xs text-fg-muted">{t('wrk.totalAdvances')}</div>
+                <div className="text-base font-semibold mt-0.5 tnum">{formatUZS(totalAdvances)}</div>
+              </div>
+            </div>
+            <button className="btn-primary" onClick={() => setAdvanceOpen(true)}>
+              <Wallet className="w-3.5 h-3.5" />
+              {t('wrk.giveAdvance')}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {workers.length === 0 ? (
+              <div className="xl:col-span-2 card p-10 text-center text-fg-subtle">
+                {t('common.empty')}
+              </div>
+            ) : (
+              workers.map(w => {
+                const due = workerPayoutDue(w);
+                return (
+                  <div key={w.id} className="card overflow-hidden">
+                    <div className="px-5 pt-5 pb-4 flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-surface-2 border border-border flex items-center justify-center text-sm font-semibold">
+                          {initials(w.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{w.name}</div>
+                          <div className="text-xs text-fg-muted tnum">{formatUZS(w.monthlySalary)} / {t('wrk.salary')}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button className="btn-ghost !p-1.5" onClick={() => setViewFor(w)}>
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button className="btn-ghost !p-1.5 text-negative" onClick={() => setConfirmDel(w.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="px-5 pb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-fg-muted">{t('wrk.workDays')}</span>
+                        <span className="text-xs font-medium tnum">{w.workDays}/30</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="w-7 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center transition"
+                          onClick={() => adjustDays(w, -1)}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                          <div className="h-full bg-fg" style={{ width: `${(w.workDays / 30) * 100}%` }} />
+                        </div>
+                        <button
+                          className="w-7 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center transition"
+                          onClick={() => adjustDays(w, 1)}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <dl className="grid grid-cols-3 border-t border-border">
+                      <div className="px-4 py-3 border-r border-border">
+                        <dt className="text-xs text-fg-muted">{t('wrk.bonus')}</dt>
+                        <dd className="text-sm font-semibold text-positive tnum mt-0.5">{formatUZS(w.bonus)}</dd>
+                      </div>
+                      <div className="px-4 py-3 border-r border-border">
+                        <dt className="text-xs text-fg-muted">{t('wrk.penalty')}</dt>
+                        <dd className="text-sm font-semibold text-negative tnum mt-0.5">{formatUZS(w.penalty)}</dd>
+                      </div>
+                      <div className="px-4 py-3">
+                        <dt className="text-xs text-fg-muted">{t('wrk.advance')}</dt>
+                        <dd className="text-sm font-semibold tnum mt-0.5">{formatUZS(w.advance)}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="px-5 py-4 bg-surface border-t border-border flex items-center justify-between">
+                      <span className="text-xs font-medium text-fg-muted">{t('wrk.payDue')}</span>
+                      <span className="text-xl font-semibold tnum">{formatUZS(due)}</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 border-t border-border">
+                      <button
+                        className="px-3 py-3 text-xs font-medium hover:bg-surface transition border-r border-border"
+                        onClick={() => { setBonusFor(w); setBonusAmount(0); }}
+                      >
+                        + {t('wrk.bonus')}
+                      </button>
+                      <button
+                        className="px-3 py-3 text-xs font-medium hover:bg-surface transition border-r border-border"
+                        onClick={() => { setPenaltyFor(w); setPenaltyAmount(0); }}
+                      >
+                        + {t('wrk.penalty')}
+                      </button>
+                      <button
+                        className="px-3 py-3 text-xs font-medium bg-fg text-bg hover:opacity-90 transition"
+                        onClick={() => { setPayFor(w); setPayAmount(due); setPayType('naqd'); setPayNote(''); }}
+                      >
+                        {t('wrk.pay')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* New worker */}
+          <Modal
+            open={newOpen}
+            onClose={() => setNewOpen(false)}
+            title={t('wrk.newTitle')}
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setNewOpen(false)}>{t('common.cancel')}</button>
+                <button className="btn-primary" onClick={addNewWorker}>{t('common.save')}</button>
+              </>
+            }
+          >
+            <Field label={t('common.customer')}>
+              <input className="input" value={name} onChange={e => setName(e.target.value)} />
+            </Field>
+            <Field label={t('wrk.salary')}>
+              <input className="input" type="number" min={0} value={salary} onChange={e => setSalary(Number(e.target.value))} />
+            </Field>
+          </Modal>
+
+          <Modal
+            open={!!bonusFor}
+            onClose={() => setBonusFor(null)}
+            title={t('wrk.bonusTitle')}
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setBonusFor(null)}>{t('common.cancel')}</button>
+                <button className="btn-primary" onClick={saveBonus}>{t('common.save')}</button>
+              </>
+            }
+          >
+            {bonusFor && <div className="text-sm text-fg-muted">{bonusFor.name}</div>}
+            <Field label={t('common.amount')}>
+              <input className="input" type="number" min={0} value={bonusAmount} onChange={e => setBonusAmount(Number(e.target.value))} />
+            </Field>
+          </Modal>
+
+          <Modal
+            open={!!penaltyFor}
+            onClose={() => setPenaltyFor(null)}
+            title={t('wrk.penaltyTitle')}
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setPenaltyFor(null)}>{t('common.cancel')}</button>
+                <button className="btn-primary" onClick={savePenalty}>{t('common.save')}</button>
+              </>
+            }
+          >
+            {penaltyFor && <div className="text-sm text-fg-muted">{penaltyFor.name}</div>}
+            <Field label={t('common.amount')}>
+              <input className="input" type="number" min={0} value={penaltyAmount} onChange={e => setPenaltyAmount(Number(e.target.value))} />
+            </Field>
+          </Modal>
+
+          <Modal
+            open={advanceOpen}
+            onClose={() => setAdvanceOpen(false)}
+            title={t('wrk.advanceTitle')}
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setAdvanceOpen(false)}>{t('common.cancel')}</button>
+                <button className="btn-primary" onClick={saveAdvance}>{t('common.save')}</button>
+              </>
+            }
+          >
+            <Field label={t('wrk.pickWorker')}>
+              <select className="input" value={advanceWorkerId} onChange={e => setAdvanceWorkerId(e.target.value)}>
+                <option value="">—</option>
+                {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </Field>
+            <Field label={t('common.amount')}>
+              <input className="input" type="number" min={0} value={advanceAmount} onChange={e => setAdvanceAmount(Number(e.target.value))} />
+            </Field>
+          </Modal>
+
+          <Modal
+            open={!!payFor}
+            onClose={() => setPayFor(null)}
+            title={t('wrk.payTitle')}
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary" onClick={() => setPayFor(null)}>{t('common.cancel')}</button>
+                <button className="btn-primary" onClick={savePayment}>{t('common.save')}</button>
+              </>
+            }
+          >
+            {payFor && (
+              <>
+                <div className="bg-surface border border-border rounded-lg p-3">
+                  <div className="text-xs text-fg-muted">{t('wrk.amountDue')}</div>
+                  <div className="text-2xl font-semibold tnum mt-0.5">{formatUZS(workerPayoutDue(payFor))}</div>
+                </div>
+                <Field label={t('wrk.paymentAmount')}>
+                  <input className="input" type="number" min={0} value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} />
+                </Field>
+                <Field label={t('common.paymentType')}>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {PAYMENT_TYPES.map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPayType(p)}
+                        className={cn(
+                          'py-2 rounded-lg border text-sm font-medium transition',
+                          payType === p ? 'bg-fg text-bg border-fg' : 'bg-bg border-border text-fg-muted hover:text-fg hover:bg-surface',
+                        )}
+                      >
+                        {t(`payment.${p}` as TranslationKey)}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label={t('common.note')}>
+                  <textarea className="input" value={payNote} onChange={e => setPayNote(e.target.value)} />
+                </Field>
+              </>
+            )}
+          </Modal>
+
+          <Modal
+            open={!!viewFor}
+            onClose={() => setViewFor(null)}
+            title={t('wrk.viewTitle')}
+            footer={<button className="btn-secondary" onClick={() => setViewFor(null)}>{t('common.close')}</button>}
+          >
+            {viewFor && (
+              <>
+                <div>
+                  <div className="text-xs text-fg-muted">{t('common.customer')}</div>
+                  <div className="text-lg font-semibold mt-0.5">{viewFor.name}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-surface border border-border rounded-lg p-3">
+                    <div className="text-xs text-fg-muted">{t('wrk.salary')}</div>
+                    <div className="text-sm font-semibold tnum mt-0.5">{formatUZS(viewFor.monthlySalary)}</div>
+                  </div>
+                  <div className="bg-surface border border-border rounded-lg p-3">
+                    <div className="text-xs text-fg-muted">{t('wrk.workDays')}</div>
+                    <div className="text-sm font-semibold tnum mt-0.5">{viewFor.workDays}/30</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-fg-muted mb-2">{t('wrk.history')}</div>
+                  {viewFor.paymentHistory.length === 0 ? (
+                    <p className="text-sm text-fg-subtle">{t('common.empty')}</p>
+                  ) : (
+                    <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                      {viewFor.paymentHistory.slice(0, 10).map(p => (
+                        <li key={p.id} className="flex items-center justify-between bg-surface border border-border rounded-lg px-3 py-2">
+                          <div>
+                            <div className="text-sm font-semibold tnum">{formatUZS(p.amount)}</div>
+                            <div className="text-xs text-fg-muted">{formatDate(p.date)} · {t(`payment.${p.paymentType}` as TranslationKey)}</div>
+                          </div>
+                          <div className="text-[11px] text-fg-subtle">
+                            {p.snapshot.workDays}d · b{p.snapshot.bonus} · p{p.snapshot.penalty}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </Modal>
+
+          <ConfirmDialog open={!!confirmDel} onConfirm={handleDelete} onCancel={() => setConfirmDel(null)} />
+        </>
+      )}
+    </Layout>
+  );
+}

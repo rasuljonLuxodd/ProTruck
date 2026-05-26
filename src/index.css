@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* surfaces */
+    --bg: 255 255 255;
+    --surface: 250 250 250;       /* zinc-50 */
+    --surface-2: 244 244 245;     /* zinc-100 */
+
+    /* borders */
+    --border: 228 228 231;        /* zinc-200 */
+    --border-strong: 212 212 216; /* zinc-300 */
+
+    /* text */
+    --fg: 24 24 27;               /* zinc-900 */
+    --fg-muted: 113 113 122;      /* zinc-500 */
+    --fg-subtle: 161 161 170;     /* zinc-400 */
+
+    /* signals */
+    --positive: 22 163 74;        /* green-600 */
+    --negative: 220 38 38;        /* red-600 */
+    --accent: 24 24 27;           /* primary action = near-black */
+  }
+
+  .dark {
+    --bg: 9 9 11;                 /* zinc-950 */
+    --surface: 24 24 27;          /* zinc-900 */
+    --surface-2: 39 39 42;        /* zinc-800 */
+
+    --border: 39 39 42;           /* zinc-800 */
+    --border-strong: 63 63 70;    /* zinc-700 */
+
+    --fg: 250 250 250;            /* zinc-50 */
+    --fg-muted: 161 161 170;      /* zinc-400 */
+    --fg-subtle: 113 113 122;     /* zinc-500 */
+
+    --positive: 34 197 94;        /* green-500 */
+    --negative: 239 68 68;        /* red-500 */
+    --accent: 250 250 250;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.18);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-strong));
+    border-radius: 6px;
+    border: 2px solid rgb(var(--bg));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--fg-subtle));
+  }
+}
+
+@layer components {
+  /* surfaces */
+  .card {
+    @apply bg-surface border border-border rounded-xl;
+  }
+
+  /* tabular numerals */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* inputs */
+  .input {
+    @apply w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-fg
+           placeholder:text-fg-subtle outline-none transition tnum
+           focus:border-fg focus:ring-2 focus:ring-fg/10;
+  }
+  textarea.input {
+    @apply min-h-[80px];
+  }
+  select.input {
+    @apply appearance-none cursor-pointer pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%2371717a' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+
+  .label {
+    @apply text-xs font-medium text-fg-muted mb-1.5 block;
+  }
+
+  /* buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg
+           transition disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-fg text-bg hover:opacity-90 shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-bg border border-border text-fg hover:bg-surface;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-fg-muted hover:text-fg hover:bg-surface;
+  }
+  .btn-danger {
+    @apply btn bg-negative text-white hover:opacity-90;
+  }
+
+  /* badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md;
+  }
+
+  /* table */
+  .data-table {
+    @apply w-full text-sm tnum;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .data-table thead th {
+    @apply text-xs font-medium text-fg-muted text-left px-4 py-2.5 border-b border-border bg-surface;
+  }
+  .data-table tbody td {
+    @apply px-4 py-3 border-b border-border;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .data-table tbody tr:hover td {
+    background: rgb(var(--surface) / 1);
+  }
+
+  /* big stat number */
+  .stat-value {
+    @apply text-3xl font-semibold tracking-tight tnum whitespace-nowrap;
+  }
+}
