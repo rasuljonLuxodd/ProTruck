@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n/LanguageProvider';
 import { useFormatDate } from '@/lib/useFormatters';
+import { usePopoverPosition } from '@/lib/usePopoverPosition';
 import type { TranslationKey } from '@/i18n/translations';
 
 interface Props {
@@ -52,9 +54,13 @@ export function DatePicker({
 }: Props) {
   const t = useT();
   const fmtDate = useFormatDate();
-  const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const { coords } = usePopoverPosition(triggerRef, open, {
+    preferredWidth: 280,
+    preferredHeight: 340,
+  });
 
   const selected = useMemo(() => parseISODate(value), [value]);
   const [viewMonth, setViewMonth] = useState<Date>(() => {
@@ -68,16 +74,24 @@ export function DatePicker({
     if (base) setViewMonth(new Date(base.getFullYear(), base.getMonth(), 1));
   }, [value]);
 
-  // Close on outside click.
+  // Close on outside click (anywhere outside trigger + portal popover).
   useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
     }
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -138,7 +152,7 @@ export function DatePicker({
   ];
 
   return (
-    <div ref={wrapRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       <button
         ref={triggerRef}
         type="button"
@@ -170,10 +184,12 @@ export function DatePicker({
         ) : null}
       </button>
 
-      {open && (
+      {open && coords && createPortal(
         <div
+          ref={popoverRef}
           role="dialog"
-          className="absolute z-[60] left-0 top-full mt-1 w-[280px] rounded-xl border border-border bg-bg shadow-lg animate-scaleIn p-3"
+          style={{ position: 'fixed', top: coords.top, left: coords.left, width: 280 }}
+          className="z-[100] rounded-xl border border-border bg-bg shadow-lg animate-scaleIn p-3"
         >
           {/* header */}
           <div className="flex items-center justify-between mb-2">
@@ -252,7 +268,8 @@ export function DatePicker({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

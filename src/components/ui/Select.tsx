@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePopoverPosition } from '@/lib/usePopoverPosition';
 
 export interface SelectOption<T extends string = string> {
   value: T;
@@ -41,9 +43,14 @@ export function Select<T extends string>({
 }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const current = options.find(o => o.value === value);
+  const { coords, width } = usePopoverPosition(triggerRef, open, {
+    preferredWidth: 240,
+    preferredHeight: Math.min(280, Math.max(80, options.length * 36 + 16)),
+    matchTriggerWidth: true,
+  });
 
   // Reset active highlight to the current selection each time we open.
   useEffect(() => {
@@ -56,13 +63,14 @@ export function Select<T extends string>({
     });
   }, [open, options, value]);
 
-  // Close on outside click.
+  // Close on outside click (anywhere outside trigger + portaled popover).
   useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (listRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -96,8 +104,9 @@ export function Select<T extends string>({
   }
 
   return (
-    <div ref={wrapRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen(o => !o)}
@@ -126,11 +135,12 @@ export function Select<T extends string>({
         />
       </button>
 
-      {open && (
+      {open && coords && createPortal(
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-[60] left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-bg shadow-lg animate-scaleIn py-1"
+          style={{ position: 'fixed', top: coords.top, left: coords.left, width }}
+          className="z-[100] max-h-64 overflow-y-auto rounded-lg border border-border bg-bg shadow-lg animate-scaleIn py-1"
         >
           {options.length === 0 ? (
             <li className="px-3 py-2 text-sm text-fg-subtle text-center">—</li>
@@ -158,7 +168,8 @@ export function Select<T extends string>({
               );
             })
           )}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );
