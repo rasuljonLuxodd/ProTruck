@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Search, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingCart, Printer, Download } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -7,16 +7,17 @@ import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
-import { useSales, useAddSale, useDeleteSale } from '@/hooks/useSales';
-import { useProducts, useUpdateProduct } from '@/hooks/useProducts';
-import { useAddDebt } from '@/hooks/useDebts';
-import { useAddActionLog } from '@/hooks/useActionLogs';
+import { useSales, useDeleteSale, useExecuteSale } from '@/hooks/useSales';
+import { useProducts } from '@/hooks/useProducts';
 import { formatUZS, formatDate } from '@/lib/format';
 import { actualCashIncome, inMonth } from '@/lib/calc';
+import { buildCsv, downloadCsv } from '@/lib/csv';
 import { cn } from '@/lib/utils';
-import type { CartItem, PaymentType } from '@/types';
+import type { CartItem, PaymentType, Sale } from '@/types';
 
 const PAYMENT_TYPES: PaymentType[] = ['naqd', 'karta', 'qarz', 'aralash'];
 
@@ -32,16 +33,14 @@ export default function Sales() {
   const { toast } = useToast();
   const { data: sales = [] } = useSales();
   const { data: products = [] } = useProducts();
-  const addSale = useAddSale();
+  const executeSale = useExecuteSale();
   const deleteSale = useDeleteSale();
-  const updateProduct = useUpdateProduct();
-  const addDebt = useAddDebt();
-  const addAction = useAddActionLog();
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterPayment, setFilterPayment] = useState<PaymentType | 'all'>('all');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<Sale | null>(null);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -78,6 +77,31 @@ export default function Sales() {
 
   const cartTotal = cart.reduce((a, i) => a + i.quantity * i.price, 0);
 
+  // Distinct customers (most-recent first) for the autocomplete datalist.
+  const customerSuggestions = useMemo(() => {
+    const map = new Map<string, { name: string; phone: string; date: string }>();
+    for (const s of sales) {
+      const key = s.customerName.trim().toLowerCase();
+      if (!key) continue;
+      const prev = map.get(key);
+      if (!prev || new Date(s.date) > new Date(prev.date)) {
+        map.set(key, { name: s.customerName, phone: s.customerPhone, date: s.date });
+      }
+    }
+    return [...map.values()];
+  }, [sales]);
+
+  // When the cashier picks a customer name we know, prefill the phone.
+  function onCustomerNameChange(next: string) {
+    setCustomerName(next);
+    const match = customerSuggestions.find(
+      c => c.name.trim().toLowerCase() === next.trim().toLowerCase(),
+    );
+    if (match && match.phone && !customerPhone.trim()) {
+      setCustomerPhone(match.phone);
+    }
+  }
+
   function resetForm() {
     setCustomerName(''); setCustomerPhone(''); setCart([]);
     setPickProductId(''); setPickQty(1); setPickPrice(0);
@@ -87,6 +111,14 @@ export default function Sales() {
   function addCartItem() {
     const product = products.find(p => p.id === pickProductId);
     if (!product || pickQty <= 0 || pickPrice <= 0) return;
+    // Prevent overselling: if adding this row would exceed stock, reject.
+    const alreadyInCart = cart
+      .filter(c => c.productId === product.id)
+      .reduce((a, c) => a + c.quantity, 0);
+    if (alreadyInCart + pickQty > product.stock) {
+      toast(t('sales.insufficientStock'), 'error');
+      return;
+    }
     setCart(prev => [
       ...prev,
       { productId: product.id, productName: product.name, quantity: pickQty, price: pickPrice },
@@ -101,55 +133,32 @@ export default function Sales() {
   function handleSave() {
     if (!customerName.trim() || cart.length === 0) return;
     const date = new Date().toISOString();
-    const total = cartTotal;
-    const sale = {
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
-      items: cart,
-      total,
-      paymentType,
-      cashPart: paymentType === 'aralash' ? cashPart : undefined,
-      debtPart: paymentType === 'aralash' ? debtPart : paymentType === 'qarz' ? total : undefined,
-      note: note.trim() || undefined,
-      date,
-    };
 
-    addSale.mutate(sale, {
-      onSuccess: async created => {
-        for (const item of cart) {
-          const product = products.find(p => p.id === item.productId);
-          if (product) {
-            updateProduct.mutate({
-              id: product.id,
-              patch: { stock: Math.max(0, product.stock - item.quantity) },
-            });
-          }
-        }
-        const debtAmount =
-          paymentType === 'qarz' ? total : paymentType === 'aralash' ? debtPart : 0;
-        if (debtAmount > 0) {
-          addDebt.mutate({
-            customerName: customerName.trim(),
-            customerPhone: customerPhone.trim(),
-            product: cart.map(i => `${i.productName} ×${i.quantity}`).join(', '),
-            amount: debtAmount,
-            originalAmount: debtAmount,
-            saleId: created.id,
-            date,
-            note: note.trim() || undefined,
-          });
-        }
-        addAction.mutate({
-          type: 'sale',
-          description: `${customerName.trim()} — ${formatUZS(total)}`,
-          date,
-        });
-        toast(t('toast.saved'));
-        resetForm();
-        setOpen(false);
+    executeSale.mutate(
+      {
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: cart,
+        paymentType,
+        cashPart: paymentType === 'aralash' ? cashPart : undefined,
+        debtPart: paymentType === 'aralash' ? debtPart : undefined,
+        note: note.trim() || undefined,
+        date,
       },
-      onError: () => toast(t('toast.error'), 'error'),
-    });
+      {
+        onSuccess: () => {
+          toast(t('toast.saved'));
+          resetForm();
+          setOpen(false);
+        },
+        onError: (err: unknown) => {
+          const msg = err instanceof Error && err.message === 'insufficient_stock'
+            ? t('sales.insufficientStock')
+            : t('toast.error');
+          toast(msg, 'error');
+        },
+      },
+    );
   }
 
   function handleDelete() {
@@ -163,7 +172,33 @@ export default function Sales() {
     <Layout>
       {({ openMenu }) => (
         <>
-          <PageHeader title={t('nav.sales')} onMenu={openMenu} onAdd={() => setOpen(true)} />
+          <PageHeader
+            title={t('nav.sales')}
+            onMenu={openMenu}
+            onAdd={() => setOpen(true)}
+            rightSlot={
+              filtered.length > 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    const csv = buildCsv(filtered, [
+                      { key: 'date',          header: t('common.date'),          render: r => formatDate(r.date) },
+                      { key: 'customerName',  header: t('common.customer') },
+                      { key: 'customerPhone', header: t('common.phone') },
+                      { key: 'items',         header: t('sales.colProducts'),    render: r => r.items.map(i => `${i.productName} x${i.quantity}`).join('; ') },
+                      { key: 'total',         header: t('sales.colTotal'),       render: r => String(r.total) },
+                      { key: 'paymentType',   header: t('common.paymentType'),   render: r => t(`payment.${r.paymentType}` as const) },
+                      { key: 'note',          header: t('common.note'),          render: r => r.note ?? '' },
+                    ]);
+                    downloadCsv(`sales-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t('common.export')}
+                </button>
+              )
+            }
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <StatCard title={t('sales.monthlyTotal')} value={formatUZS(monthTotal)} icon={ShoppingCart} />
@@ -193,6 +228,15 @@ export default function Sales() {
             </select>
           </div>
 
+          {sales.length === 0 ? (
+            <EmptyState
+              icon={ShoppingCart}
+              title={t('empty.sales.title')}
+              description={t('empty.sales.desc')}
+              actionLabel={t('sales.title')}
+              onAction={() => setOpen(true)}
+            />
+          ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -228,7 +272,10 @@ export default function Sales() {
                             <Badge tone={statusTone[s.paymentType]}>{t(`payment.${s.paymentType}` as const)}</Badge>
                           </td>
                           <td className="font-mono text-xs text-fg-muted">{formatDate(s.date)}</td>
-                          <td className="text-right">
+                          <td className="text-right whitespace-nowrap">
+                            <button className="btn-ghost !py-1.5" onClick={() => setReceipt(s)} title="Print receipt">
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
                             <button className="btn-ghost !py-1.5 text-negative" onClick={() => setConfirmDel(s.id)}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -241,6 +288,7 @@ export default function Sales() {
               </table>
             </div>
           </div>
+          )}
 
           <Modal
             open={open}
@@ -249,14 +297,31 @@ export default function Sales() {
             size="lg"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
-                <button className="btn-primary" onClick={handleSave}>{t('common.save')}</button>
+                <button className="btn-secondary" onClick={() => setOpen(false)} disabled={executeSale.isPending}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn-primary" onClick={handleSave} disabled={executeSale.isPending}>
+                  {executeSale.isPending ? '…' : t('common.save')}
+                </button>
               </>
             }
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label={t('sales.customerName')}>
-                <input className="input" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                <input
+                  className="input"
+                  value={customerName}
+                  onChange={e => onCustomerNameChange(e.target.value)}
+                  list="customer-suggestions"
+                  autoComplete="off"
+                />
+                <datalist id="customer-suggestions">
+                  {customerSuggestions.map(c => (
+                    <option key={c.name + c.phone} value={c.name}>
+                      {c.phone}
+                    </option>
+                  ))}
+                </datalist>
               </Field>
               <Field label={t('sales.customerPhone')}>
                 <input className="input" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
@@ -370,6 +435,80 @@ export default function Sales() {
             onConfirm={handleDelete}
             onCancel={() => setConfirmDel(null)}
           />
+
+          <PrintableSlip
+            open={!!receipt}
+            onClose={() => setReceipt(null)}
+            title="Sale receipt"
+          >
+            {receipt && (
+              <div>
+                <div className="text-center mb-4">
+                  <div className="font-sans text-base font-bold">ProTrack</div>
+                  <div className="text-xs">{formatDate(receipt.date)}</div>
+                </div>
+                <div className="border-t border-b border-dashed border-fg py-2 mb-3">
+                  <div className="flex justify-between text-xs">
+                    <span>{t('common.customer')}</span>
+                    <span className="font-semibold">{receipt.customerName}</span>
+                  </div>
+                  {receipt.customerPhone && (
+                    <div className="flex justify-between text-xs">
+                      <span>{t('common.phone')}</span>
+                      <span>{receipt.customerPhone}</span>
+                    </div>
+                  )}
+                </div>
+                <table className="w-full text-xs mb-3">
+                  <thead>
+                    <tr>
+                      <th className="text-left pb-1">{t('common.product')}</th>
+                      <th className="text-right pb-1">×</th>
+                      <th className="text-right pb-1">{t('common.total')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receipt.items.map((i, idx) => (
+                      <tr key={idx}>
+                        <td className="py-0.5">{i.productName}</td>
+                        <td className="text-right">{i.quantity}</td>
+                        <td className="text-right">{formatUZS(i.quantity * i.price)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="border-t border-fg pt-2 space-y-1 text-xs">
+                  <div className="flex justify-between font-bold">
+                    <span>{t('common.total')}</span>
+                    <span>{formatUZS(receipt.total)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('common.paymentType')}</span>
+                    <span>{t(`payment.${receipt.paymentType}` as const)}</span>
+                  </div>
+                  {receipt.paymentType === 'aralash' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>{t('sales.cashPart')}</span>
+                        <span>{formatUZS(receipt.cashPart ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('sales.debtPart')}</span>
+                        <span>{formatUZS(receipt.debtPart ?? 0)}</span>
+                      </div>
+                    </>
+                  )}
+                  {receipt.paymentType === 'qarz' && (
+                    <div className="flex justify-between text-negative font-semibold">
+                      <span>{t('debts.colAmount')}</span>
+                      <span>{formatUZS(receipt.total)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6 text-center text-[10px]">{t('common.thanks')}</div>
+              </div>
+            )}
+          </PrintableSlip>
         </>
       )}
     </Layout>

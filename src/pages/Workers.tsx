@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Plus, Minus, Eye, Trash2, Wallet } from 'lucide-react';
+import { Plus, Minus, Eye, Trash2, Wallet, Users as UsersIcon, Printer } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -15,7 +17,7 @@ import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate } from '@/lib/format';
 import { workerPayoutDue } from '@/lib/calc';
 import { cn } from '@/lib/utils';
-import type { PaymentType, Worker } from '@/types';
+import type { PaymentType, Worker, WorkerPayment } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 
 const PAYMENT_TYPES: PaymentType[] = ['naqd', 'karta', 'qarz', 'aralash'];
@@ -56,6 +58,7 @@ export default function Workers() {
 
   const [viewFor, setViewFor] = useState<Worker | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [payslipFor, setPayslipFor] = useState<{ worker: Worker; payment: WorkerPayment } | null>(null);
 
   const monthLabel = useMemo(() => {
     const m = new Date().getMonth() + 1;
@@ -197,13 +200,17 @@ export default function Workers() {
             </button>
           </div>
 
+          {workers.length === 0 ? (
+            <EmptyState
+              icon={UsersIcon}
+              title={t('empty.workers.title')}
+              description={t('empty.workers.desc')}
+              actionLabel={t('wrk.newTitle')}
+              onAction={() => { setName(''); setSalary(0); setNewOpen(true); }}
+            />
+          ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {workers.length === 0 ? (
-              <div className="xl:col-span-2 card p-10 text-center text-fg-subtle">
-                {t('common.empty')}
-              </div>
-            ) : (
-              workers.map(w => {
+            {workers.map(w => {
                 const due = workerPayoutDue(w);
                 return (
                   <div key={w.id} className="card overflow-hidden">
@@ -293,9 +300,9 @@ export default function Workers() {
                     </div>
                   </div>
                 );
-              })
-            )}
+              })}
           </div>
+          )}
 
           {/* New worker */}
           <Modal
@@ -456,8 +463,17 @@ export default function Workers() {
                             <div className="text-sm font-semibold tnum">{formatUZS(p.amount)}</div>
                             <div className="text-xs text-fg-muted">{formatDate(p.date)} · {t(`payment.${p.paymentType}` as TranslationKey)}</div>
                           </div>
-                          <div className="text-[11px] text-fg-subtle">
-                            {p.snapshot.workDays}d · b{p.snapshot.bonus} · p{p.snapshot.penalty}
+                          <div className="flex items-center gap-2">
+                            <div className="text-[11px] text-fg-subtle">
+                              {p.snapshot.workDays}d · b{p.snapshot.bonus} · p{p.snapshot.penalty}
+                            </div>
+                            <button
+                              className="btn-ghost !p-1.5"
+                              onClick={() => setPayslipFor({ worker: viewFor, payment: p })}
+                              title={t('common.payslip')}
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </li>
                       ))}
@@ -469,6 +485,67 @@ export default function Workers() {
           </Modal>
 
           <ConfirmDialog open={!!confirmDel} onConfirm={handleDelete} onCancel={() => setConfirmDel(null)} />
+
+          <PrintableSlip
+            open={!!payslipFor}
+            onClose={() => setPayslipFor(null)}
+            title={t('common.payslip')}
+          >
+            {payslipFor && (
+              <div>
+                <div className="text-center mb-4">
+                  <div className="font-sans text-base font-bold">ProTrack</div>
+                  <div className="text-xs">{t('common.payslip')} · {formatDate(payslipFor.payment.date)}</div>
+                </div>
+                <div className="border-t border-b border-dashed border-fg py-2 mb-3 space-y-0.5 text-xs">
+                  <div className="flex justify-between">
+                    <span>{t('common.customer')}</span>
+                    <span className="font-semibold">{payslipFor.worker.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('wrk.salary')}</span>
+                    <span>{formatUZS(payslipFor.payment.snapshot.salary)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('wrk.workDays')}</span>
+                    <span>{payslipFor.payment.snapshot.workDays} / 30</span>
+                  </div>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>{t('wrk.bonus')}</span>
+                    <span className="text-positive">+{formatUZS(payslipFor.payment.snapshot.bonus)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('wrk.penalty')}</span>
+                    <span className="text-negative">−{formatUZS(payslipFor.payment.snapshot.penalty)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('wrk.advance')}</span>
+                    <span>−{formatUZS(payslipFor.payment.snapshot.advance)}</span>
+                  </div>
+                </div>
+                <div className="mt-3 pt-2 border-t border-fg flex justify-between text-sm font-bold">
+                  <span>{t('wrk.payDue')}</span>
+                  <span>{formatUZS(payslipFor.payment.amount)}</span>
+                </div>
+                <div className="mt-1 flex justify-between text-xs">
+                  <span>{t('common.paymentType')}</span>
+                  <span>{t(`payment.${payslipFor.payment.paymentType}` as TranslationKey)}</span>
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-3 text-[10px] text-center">
+                  <div>
+                    <div className="border-b border-fg pb-1 mb-1">_____________</div>
+                    <div>{t('common.customer')}</div>
+                  </div>
+                  <div>
+                    <div className="border-b border-fg pb-1 mb-1">_____________</div>
+                    <div>{t('role.admin')}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </PrintableSlip>
         </>
       )}
     </Layout>

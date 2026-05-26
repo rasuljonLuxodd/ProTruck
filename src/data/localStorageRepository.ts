@@ -58,13 +58,18 @@ function nowISO(): string {
 export class LocalStorageRepository implements Repository {
   // -------- products --------
   async listProducts(): Promise<Product[]> {
-    return read<Product>(KEYS.products);
+    // Backfill minStock for records created before the column existed.
+    return read<Product>(KEYS.products).map(p => ({
+      ...p,
+      minStock: p.minStock ?? 10,
+    }));
   }
 
   async addProduct(input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'>): Promise<Product> {
     const products = read<Product>(KEYS.products);
     const product: Product = {
       ...input,
+      minStock: input.minStock ?? 10,
       id: uid(),
       createdAt: nowISO(),
       lastUpdated: nowISO(),
@@ -117,6 +122,97 @@ export class LocalStorageRepository implements Repository {
   async deleteSale(id: string): Promise<void> {
     const sales = read<Sale>(KEYS.sales).filter(s => s.id !== id);
     write(KEYS.sales, sales);
+  }
+
+  async executeSale(input: {
+    customerName: string;
+    customerPhone: string;
+    items: Sale['items'];
+    paymentType: Sale['paymentType'];
+    cashPart?: number;
+    debtPart?: number;
+    note?: string;
+    date: string;
+  }): Promise<{ saleId: string; debtId?: string; total: number }> {
+    // Validate stock first; throw before mutating anything so we don't
+    // half-apply a sale.
+    const products = read<Product>(KEYS.products);
+    const byId = new Map(products.map(p => [p.id, p]));
+    for (const item of input.items) {
+      const p = byId.get(item.productId);
+      if (!p || p.stock < item.quantity) {
+        const err = new Error('insufficient_stock');
+        (err as Error & { detail?: string }).detail = item.productName;
+        throw err;
+      }
+    }
+
+    const total = input.items.reduce((a, i) => a + i.quantity * i.price, 0);
+    const debtAmount =
+      input.paymentType === 'qarz' ? total
+      : input.paymentType === 'aralash' ? (input.debtPart ?? 0)
+      : 0;
+
+    // Decrement stock.
+    for (const item of input.items) {
+      const p = byId.get(item.productId)!;
+      p.stock -= item.quantity;
+      p.lastUpdated = nowISO();
+    }
+    write(KEYS.products, [...byId.values()]);
+
+    // Insert sale.
+    const sale: Sale = {
+      id: uid(),
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      items: input.items,
+      total,
+      paymentType: input.paymentType,
+      cashPart: input.paymentType === 'aralash' ? input.cashPart : undefined,
+      debtPart:
+        input.paymentType === 'aralash' ? input.debtPart
+        : input.paymentType === 'qarz'   ? total
+        : undefined,
+      note: input.note,
+      date: input.date,
+    };
+    const sales = read<Sale>(KEYS.sales);
+    sales.push(sale);
+    write(KEYS.sales, sales);
+
+    // Optionally insert debt.
+    let debtId: string | undefined;
+    if (debtAmount > 0) {
+      const debt: Debt = {
+        id: uid(),
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        product: input.items.map(i => `${i.productName} ×${i.quantity}`).join(', '),
+        amount: debtAmount,
+        originalAmount: debtAmount,
+        saleId: sale.id,
+        date: input.date,
+        note: input.note,
+        payments: [],
+      };
+      const debts = read<Debt>(KEYS.debts);
+      debts.push(debt);
+      write(KEYS.debts, debts);
+      debtId = debt.id;
+    }
+
+    // Action log.
+    const log: ActionLog = {
+      id: uid(),
+      type: 'sale',
+      description: `${input.customerName} — UZS ${total.toLocaleString('en-US').replace(/,/g, ' ')}`,
+      date: input.date,
+    };
+    const logs = read<ActionLog>(KEYS.actionLogs);
+    write(KEYS.actionLogs, [log, ...logs].slice(0, 200));
+
+    return { saleId: sale.id, debtId, total };
   }
 
   // -------- debts --------

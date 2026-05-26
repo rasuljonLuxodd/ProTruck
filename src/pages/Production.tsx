@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useProducts, useAddProduct, useDeleteProduct, useUpdateProduct } from '@/hooks/useProducts';
@@ -29,6 +30,7 @@ export default function Production() {
   const [newOpen, setNewOpen] = useState(false);
   const [name, setName] = useState('');
   const [initialStock, setInitialStock] = useState(0);
+  const [minStock, setMinStock] = useState(10);
 
   const [dailyOpen, setDailyOpen] = useState<string | null>(null);
   const [dailyQty, setDailyQty] = useState(0);
@@ -45,13 +47,14 @@ export default function Production() {
   function handleSaveNew() {
     if (!name.trim()) return;
     addProduct.mutate(
-      { name: name.trim(), stock: initialStock },
+      { name: name.trim(), stock: initialStock, minStock },
       {
         onSuccess: () => {
           toast(t('toast.saved'));
           setNewOpen(false);
           setName('');
           setInitialStock(0);
+          setMinStock(10);
         },
         onError: () => toast(t('toast.error'), 'error'),
       },
@@ -105,6 +108,15 @@ export default function Production() {
             <StatCard title={t('prod.topProduct')} value={topProduct} />
           </div>
 
+          {products.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title={t('empty.products.title')}
+              description={t('empty.products.desc')}
+              actionLabel={t('prod.newProduct')}
+              onAction={() => setNewOpen(true)}
+            />
+          ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -117,40 +129,44 @@ export default function Production() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center text-fg-subtle py-10">{t('common.empty')}</td></tr>
-                  ) : (
-                    products.map(p => (
-                      <tr key={p.id}>
-                        <td className="font-medium">{p.name}</td>
-                        <td>
-                          <Badge tone={p.stock > 50 ? 'positive' : p.stock > 10 ? 'warning' : 'negative'}>
-                            {p.stock}
-                          </Badge>
-                        </td>
-                        <td className="text-fg-muted font-mono text-xs">{formatDate(p.lastUpdated)}</td>
-                        <td className="text-right space-x-1 whitespace-nowrap">
-                          <button
-                            className="btn-secondary !py-1.5 !text-xs"
-                            onClick={() => { setDailyOpen(p.id); setDailyQty(0); }}
-                          >
-                            <Plus className="w-3 h-3" />
-                            {t('prod.dailyAdd')}
-                          </button>
-                          <button
-                            className="btn-ghost !py-1.5 text-negative hover:text-negative"
-                            onClick={() => setConfirmDel(p.id)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  {products.map(p => (
+                    <tr key={p.id}>
+                      <td className="font-medium">{p.name}</td>
+                      <td>
+                        <Badge
+                          tone={
+                            p.stock <= p.minStock ? 'negative'
+                            : p.stock <= p.minStock * 2 ? 'warning'
+                            : 'positive'
+                          }
+                        >
+                          {p.stock}
+                          {p.stock <= p.minStock ? ` · ${t('prod.lowStock')}` : ''}
+                        </Badge>
+                      </td>
+                      <td className="text-fg-muted font-mono text-xs">{formatDate(p.lastUpdated)}</td>
+                      <td className="text-right space-x-1 whitespace-nowrap">
+                        <button
+                          className="btn-secondary !py-1.5 !text-xs"
+                          onClick={() => { setDailyOpen(p.id); setDailyQty(0); }}
+                        >
+                          <Plus className="w-3 h-3" />
+                          {t('prod.dailyAdd')}
+                        </button>
+                        <button
+                          className="btn-ghost !py-1.5 text-negative hover:text-negative"
+                          onClick={() => setConfirmDel(p.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
+          )}
 
           <Modal
             open={newOpen}
@@ -159,17 +175,26 @@ export default function Production() {
             size="sm"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setNewOpen(false)}>{t('common.cancel')}</button>
-                <button className="btn-primary" onClick={handleSaveNew}>{t('common.save')}</button>
+                <button className="btn-secondary" onClick={() => setNewOpen(false)} disabled={addProduct.isPending}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn-primary" onClick={handleSaveNew} disabled={addProduct.isPending}>
+                  {addProduct.isPending ? '…' : t('common.save')}
+                </button>
               </>
             }
           >
             <Field label={t('prod.productName')}>
               <input className="input" value={name} onChange={e => setName(e.target.value)} />
             </Field>
-            <Field label={t('prod.initialStock')}>
-              <input className="input" type="number" min={0} value={initialStock} onChange={e => setInitialStock(Number(e.target.value))} />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('prod.initialStock')}>
+                <input className="input" type="number" min={0} value={initialStock} onChange={e => setInitialStock(Number(e.target.value))} />
+              </Field>
+              <Field label={t('prod.minStock')}>
+                <input className="input" type="number" min={0} value={minStock} onChange={e => setMinStock(Number(e.target.value))} />
+              </Field>
+            </div>
           </Modal>
 
           <Modal
@@ -179,8 +204,12 @@ export default function Production() {
             size="sm"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setDailyOpen(null)}>{t('common.cancel')}</button>
-                <button className="btn-primary" onClick={handleAddDaily}>{t('common.save')}</button>
+                <button className="btn-secondary" onClick={() => setDailyOpen(null)} disabled={addLog.isPending}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn-primary" onClick={handleAddDaily} disabled={addLog.isPending}>
+                  {addLog.isPending ? '…' : t('common.save')}
+                </button>
               </>
             }
           >

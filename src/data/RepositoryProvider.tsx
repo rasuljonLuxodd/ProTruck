@@ -1,11 +1,15 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { Repository } from './repository';
 import { LocalStorageRepository } from './localStorageRepository';
+import { SupabaseRepository } from './supabaseRepository';
 
-// TODO: SupabaseRepository — replace the single line below
-// with `new SupabaseRepository(supabaseClient)` to switch storage.
-// No other file needs to change.
 const RepositoryContext = createContext<Repository | null>(null);
+
+function makeDefaultRepository(): Repository {
+  const backend = (import.meta.env.VITE_BACKEND ?? 'supabase').toLowerCase();
+  if (backend === 'local') return new LocalStorageRepository();
+  return new SupabaseRepository();
+}
 
 interface Props {
   children: ReactNode;
@@ -14,7 +18,7 @@ interface Props {
 
 export function RepositoryProvider({ children, repository }: Props) {
   const repo = useMemo<Repository>(
-    () => repository ?? new LocalStorageRepository(),
+    () => repository ?? makeDefaultRepository(),
     [repository],
   );
   return <RepositoryContext.Provider value={repo}>{children}</RepositoryContext.Provider>;

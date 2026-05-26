@@ -11,7 +11,9 @@ import { useT, useLanguage } from '@/i18n/LanguageProvider';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/auth/AuthProvider';
-import { useUsers, useAddUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
+import { useUsers, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
+import { supabase } from '@/data/supabaseClient';
+import { TwoFactorSection } from '@/components/settings/TwoFactorSection';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Language, Role, User } from '@/types';
@@ -86,7 +88,7 @@ export default function Settings() {
 
             {/* section body */}
             <section className="col-span-12 md:col-span-9">
-              {section === 'profile' && <ProfileSection />}
+              {section === 'profile' && <ProfileSectionWithMfa />}
               {section === 'preferences' && (
                 <PreferencesSection
                   lang={lang}
@@ -113,28 +115,55 @@ function ProfileSection() {
   const [name, setName] = useState(currentUser!.name);
   const [email, setEmail] = useState(currentUser!.email);
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
 
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!currentUser) return;
-    const patch: Partial<User> = { name: name.trim(), email: email.trim() };
-    if (password.trim()) patch.password = password;
-    updateUser.mutate(
-      { id: currentUser.id, patch },
-      {
-        onSuccess: async () => {
-          await refresh();
-          setPassword('');
-          toast(t('toast.saved'));
-        },
-        onError: (e: unknown) => {
-          const msg = e instanceof Error && e.message === 'duplicate_email'
-            ? t('set.duplicateEmail')
-            : t('toast.error');
-          toast(msg, 'error');
-        },
-      },
-    );
+    setBusy(true);
+    try {
+      // 1) Update name in profiles (handled via repository).
+      if (name.trim() !== currentUser.name) {
+        await new Promise<void>((resolve, reject) => {
+          updateUser.mutate(
+            { id: currentUser.id, patch: { name: name.trim() } },
+            { onSuccess: () => resolve(), onError: reject },
+          );
+        });
+      }
+
+      // 2) Email + password via Supabase Auth (these live in auth.users).
+      const authPatch: { email?: string; password?: string } = {};
+      if (email.trim().toLowerCase() !== currentUser.email.trim().toLowerCase()) {
+        authPatch.email = email.trim();
+      }
+      if (password.trim()) authPatch.password = password;
+
+      if (Object.keys(authPatch).length > 0) {
+        const { error } = await supabase.auth.updateUser(authPatch);
+        if (error) {
+          toast(error.message, 'error');
+          setBusy(false);
+          return;
+        }
+        // Mirror email into profiles so the Users table stays current.
+        if (authPatch.email) {
+          await supabase.from('profiles').update({ email: authPatch.email }).eq('id', currentUser.id);
+        }
+      }
+
+      await refresh();
+      setPassword('');
+      toast(t('toast.saved'));
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message === 'duplicate_email'
+          ? t('set.duplicateEmail')
+          : t('toast.error');
+      toast(msg, 'error');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -159,10 +188,19 @@ function ProfileSection() {
             placeholder="••••••••"
           />
         </Field>
-        <button type="submit" className="btn-primary">
-          {t('set.saveProfile')}
+        <button type="submit" className="btn-primary" disabled={busy}>
+          {busy ? '…' : t('set.saveProfile')}
         </button>
       </form>
+    </div>
+  );
+}
+
+function ProfileSectionWithMfa() {
+  return (
+    <div className="space-y-4">
+      <ProfileSection />
+      <TwoFactorSection />
     </div>
   );
 }
@@ -234,11 +272,11 @@ function PreferencesSection({
 function UsersSection() {
   const t = useT();
   const { toast } = useToast();
-  const { currentUser, refresh } = useAuth();
+  const { currentUser, refresh, createUser } = useAuth();
   const { data: users = [] } = useUsers();
-  const addUser = useAddUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const [creating, setCreating] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
@@ -259,11 +297,13 @@ function UsersSection() {
     setOpen(true);
   }
 
-  function save(e: FormEvent) {
+  async function save(e: FormEvent) {
     e.preventDefault();
     if (editing) {
-      const patch: Partial<User> = { name: name.trim(), email: email.trim(), role };
-      if (password.trim()) patch.password = password;
+      // Edit existing user: update name + role via profiles. Email/password
+      // changes for other users would need a service-role edge function;
+      // self-edits go through the Profile section.
+      const patch: Partial<User> = { name: name.trim(), role };
       const isSelf = editing.id === currentUser?.id;
       updateUser.mutate(
         { id: editing.id, patch },
@@ -275,27 +315,37 @@ function UsersSection() {
             reset();
           },
           onError: (err: unknown) => {
-            const msg = err instanceof Error && err.message === 'duplicate_email'
-              ? t('set.duplicateEmail')
-              : t('toast.error');
+            const msg = err instanceof Error && err.message === 'forbidden_role_change'
+              ? t('toast.error')
+              : err instanceof Error && err.message === 'duplicate_email'
+                ? t('set.duplicateEmail')
+                : t('toast.error');
             toast(msg, 'error');
           },
         },
       );
     } else {
       if (!password.trim()) return;
-      addUser.mutate(
-        { name: name.trim(), email: email.trim(), password, role },
-        {
-          onSuccess: () => { toast(t('toast.saved')); setOpen(false); reset(); },
-          onError: (err: unknown) => {
-            const msg = err instanceof Error && err.message === 'duplicate_email'
-              ? t('set.duplicateEmail')
-              : t('toast.error');
-            toast(msg, 'error');
-          },
-        },
-      );
+      setCreating(true);
+      const result = await createUser({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        role,
+      });
+      setCreating(false);
+      if (result.ok) {
+        toast(t('toast.saved'));
+        setOpen(false);
+        reset();
+      } else {
+        const msg = result.error === 'duplicate_email'
+          ? t('set.duplicateEmail')
+          : result.error === 'weak_password'
+            ? t('auth.weakPassword')
+            : t('toast.error');
+        toast(msg, 'error');
+      }
     }
   }
 
@@ -371,7 +421,9 @@ function UsersSection() {
         footer={
           <>
             <button className="btn-secondary" onClick={() => { setOpen(false); reset(); }}>{t('common.cancel')}</button>
-            <button className="btn-primary" form="user-form" type="submit">{t('common.save')}</button>
+            <button className="btn-primary" form="user-form" type="submit" disabled={creating}>
+              {creating ? '…' : t('common.save')}
+            </button>
           </>
         }
       >
@@ -380,21 +432,28 @@ function UsersSection() {
             <input className="input" value={name} onChange={e => setName(e.target.value)} required />
           </Field>
           <Field label={t('set.email')}>
-            <input type="email" className="input" value={email} onChange={e => setEmail(e.target.value)} required />
-          </Field>
-          <Field
-            label={t('set.newPassword')}
-            hint={editing ? t('set.newPasswordHint') : undefined}
-          >
             <input
-              type="password"
-              className="input"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required={!editing}
+              type="email"
+              className="input disabled:opacity-60"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              disabled={!!editing}
             />
           </Field>
+          {!editing && (
+            <Field label={t('set.newPassword')}>
+              <input
+                type="password"
+                className="input"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </Field>
+          )}
           <Field label={t('set.role')}>
             <select className="input" value={role} onChange={e => setRole(e.target.value as Role)}>
               <option value="admin">{t('role.admin')}</option>

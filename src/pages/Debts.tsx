@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Trash2, Search, CreditCard } from 'lucide-react';
+import { Trash2, Search, CreditCard, Download } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useDebts, useAddDebt, usePayDebtPartial, usePayDebtFull, useDeleteDebt } from '@/hooks/useDebts';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, daysBetween, toInputDate, fromInputDate } from '@/lib/format';
+import { buildCsv, downloadCsv } from '@/lib/csv';
 import type { Debt } from '@/types';
 
 export default function Debts() {
@@ -101,7 +103,7 @@ export default function Debts() {
       onSuccess: () => {
         addAction.mutate({
           type: 'payment',
-          description: `${fullPay.customerName} — ${formatUZS(fullPay.amount)} (full)`,
+          description: `${fullPay.customerName} — ${formatUZS(fullPay.amount)} · ${t('debts.full')}`,
           date: new Date().toISOString(),
         });
         toast(t('toast.paid')); setFullPay(null);
@@ -118,7 +120,33 @@ export default function Debts() {
     <Layout>
       {({ openMenu }) => (
         <>
-          <PageHeader title={t('nav.debts')} onMenu={openMenu} onAdd={() => setNewOpen(true)} />
+          <PageHeader
+            title={t('nav.debts')}
+            onMenu={openMenu}
+            onAdd={() => setNewOpen(true)}
+            rightSlot={
+              filtered.length > 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    const csv = buildCsv(filtered, [
+                      { key: 'date',           header: t('common.date'),          render: r => formatDate(r.date) },
+                      { key: 'customerName',   header: t('common.customer') },
+                      { key: 'customerPhone',  header: t('common.phone') },
+                      { key: 'product',        header: t('common.product') },
+                      { key: 'amount',         header: t('debts.colAmount'),      render: r => String(r.amount) },
+                      { key: 'originalAmount', header: 'original',                 render: r => String(r.originalAmount) },
+                      { key: 'dueDate',        header: t('debts.colDue'),          render: r => (r.dueDate ? formatDate(r.dueDate) : '') },
+                    ]);
+                    downloadCsv(`debts-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t('common.export')}
+                </button>
+              )
+            }
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <StatCard title={t('debts.total')} value={formatUZS(total)} icon={CreditCard} tone="negative" />
@@ -136,6 +164,15 @@ export default function Debts() {
             />
           </div>
 
+          {debts.length === 0 ? (
+            <EmptyState
+              icon={CreditCard}
+              title={t('empty.debts.title')}
+              description={t('empty.debts.desc')}
+              actionLabel={t('debts.newTitle')}
+              onAction={() => setNewOpen(true)}
+            />
+          ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -187,6 +224,7 @@ export default function Debts() {
               </table>
             </div>
           </div>
+          )}
 
           <Modal
             open={newOpen}

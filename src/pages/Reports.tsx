@@ -84,7 +84,7 @@ export default function Reports() {
             title={t('nav.reports')}
             onMenu={openMenu}
             rightSlot={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
                 <div className="flex items-center border border-border rounded-lg overflow-hidden">
                   <button className="px-2.5 py-2 hover:bg-surface transition" onClick={() => shift(-1)}>
                     <ChevronLeft className="w-4 h-4" />

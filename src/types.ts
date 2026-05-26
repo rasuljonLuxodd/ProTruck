@@ -6,6 +6,7 @@ export interface Product {
   id: string;
   name: string;
   stock: number;
+  minStock: number;   // alert threshold; default 10
   createdAt: string;
   lastUpdated: string;
 }
@@ -100,6 +101,8 @@ export interface ActionLog {
   type: ActionType;
   description: string;
   date: string;
+  userId?: string;
+  userName?: string;  // denormalized for cheap display
 }
 
 export type Language = 'uz' | 'en' | 'ru';

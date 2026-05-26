@@ -9,14 +9,9 @@ export function useUsers() {
   return useQuery({ queryKey: KEY, queryFn: () => repo.listUsers() });
 }
 
-export function useAddUser() {
-  const repo = useRepository();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: Omit<User, 'id' | 'createdAt'>) => repo.addUser(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
-  });
-}
+// Note: useAddUser was removed — the Supabase repo's addUser throws because
+// creating a real account requires Supabase Auth. Use `useAuth().createUser`
+// from `@/auth/AuthProvider` instead.
 
 export function useUpdateUser() {
   const repo = useRepository();

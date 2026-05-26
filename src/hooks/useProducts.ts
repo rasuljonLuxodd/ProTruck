@@ -17,7 +17,26 @@ export function useAddProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'>) => repo.addProduct(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onMutate: async input => {
+      // Optimistically prepend a placeholder row so the table updates instantly.
+      await qc.cancelQueries({ queryKey: KEY });
+      const previous = qc.getQueryData<Product[]>(KEY);
+      const placeholder: Product = {
+        id: `optimistic-${crypto.randomUUID()}`,
+        name: input.name,
+        stock: input.stock,
+        minStock: input.minStock ?? 10,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      };
+      qc.setQueryData<Product[]>(KEY, prev => [placeholder, ...(prev ?? [])]);
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      // Roll back the optimistic insert.
+      if (ctx?.previous) qc.setQueryData(KEY, ctx.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
 

@@ -71,6 +71,31 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgb(var(--fg-subtle));
   }
+
+  /* Print: hide app chrome and produce a clean PDF-ready layout. */
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    aside,
+    .no-print {
+      display: none !important;
+    }
+    main > div {
+      max-width: 100% !important;
+      padding: 0 !important;
+    }
+    .card {
+      border: 1px solid #ddd !important;
+      box-shadow: none !important;
+      page-break-inside: avoid;
+      background: white !important;
+    }
+    .print-only { display: block !important; }
+    @page { margin: 18mm; }
+  }
+  .print-only { display: none; }
 }
 
 @layer components {

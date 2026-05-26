@@ -25,6 +25,26 @@ export function formatDate(iso: string | undefined | null): string {
   return `${y}-${m}-${day}`;
 }
 
+// Locale-aware "Jan 5", "5 янв" etc. Currently used in receipt/payslip print.
+const LOCALE_MAP = { uz: 'uz-UZ-u-ca-iso8601', en: 'en-US', ru: 'ru-RU' } as const;
+export function formatDateLocale(
+  iso: string | undefined | null,
+  lang: 'uz' | 'en' | 'ru' = 'en',
+): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat(LOCALE_MAP[lang], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(d);
+  } catch {
+    return formatDate(iso);
+  }
+}
+
 export function toInputDate(iso: string | undefined | null): string {
   return formatDate(iso) || formatDate(new Date().toISOString());
 }

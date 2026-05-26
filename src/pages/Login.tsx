@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, User as UserIcon } from 'lucide-react';
+import { supabase } from '@/data/supabaseClient';
 import { useAuth } from '@/auth/AuthProvider';
 import { useT, useLanguage } from '@/i18n/LanguageProvider';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -13,24 +14,47 @@ const LANGS: Array<{ code: Language; label: string }> = [
   { code: 'ru', label: 'RU' },
 ];
 
+type Mode = 'signin' | 'signup';
+
 export default function Login() {
   const t = useT();
   const { lang, setLang } = useLanguage();
   const { theme, toggle } = useTheme();
-  const { signIn, currentUser } = useAuth();
+  const { signIn, currentUser, refresh } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
+  const [mode, setMode] = useState<Mode>('signin');
+  const [hasAnyUser, setHasAnyUser] = useState<boolean | null>(null);
+
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // First-time? Detect whether any profile exists. If not, force signup mode.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      if (!active) return;
+      const any = (count ?? 0) > 0;
+      setHasAnyUser(any);
+      if (!any) setMode('signup');
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (currentUser) return <Navigate to={from} replace />;
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSignIn(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
@@ -43,9 +67,38 @@ export default function Login() {
     }
   }
 
+  async function handleSignUp(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    const { data, error: err } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { name: name.trim() } },
+    });
+    setBusy(false);
+    if (err) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes('user already registered')) setError(t('auth.duplicate'));
+      else if (msg.includes('password')) setError(t('auth.weakPassword'));
+      else setError(err.message);
+      return;
+    }
+    if (data.session) {
+      await refresh();
+      navigate(from, { replace: true });
+    } else {
+      // Email confirmation flow — tell user to check inbox.
+      setMode('signin');
+      setError(null);
+    }
+  }
+
+  const isSignUp = mode === 'signup';
+  const submit = isSignUp ? handleSignUp : handleSignIn;
+
   return (
     <div className="min-h-screen flex flex-col bg-bg">
-      {/* top corner controls */}
       <header className="flex items-center justify-between px-6 py-5">
         <div className="font-semibold tracking-tight">ProTrack</div>
         <div className="flex items-center gap-2">
@@ -75,11 +128,32 @@ export default function Login() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-[400px]">
           <div className="mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight">{t('auth.signInTitle')}</h1>
-            <p className="mt-1.5 text-sm text-fg-muted">{t('auth.signInSubtitle')}</p>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {isSignUp ? t('auth.signUpTitle') : t('auth.signInTitle')}
+            </h1>
+            <p className="mt-1.5 text-sm text-fg-muted">
+              {isSignUp ? t('auth.signUpSubtitle') : t('auth.signInSubtitle')}
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-4">
+            {isSignUp && (
+              <div>
+                <label className="label">{t('auth.name')}</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
+                  <input
+                    type="text"
+                    className="input pl-9"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Admin"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="label">{t('auth.email')}</label>
               <div className="relative">
@@ -107,6 +181,7 @@ export default function Login() {
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  minLength={isSignUp ? 6 : undefined}
                 />
                 <button
                   type="button"
@@ -126,17 +201,28 @@ export default function Login() {
             )}
 
             <button type="submit" className="btn-primary w-full" disabled={busy}>
-              {busy ? '…' : t('auth.signIn')}
+              {busy ? '…' : isSignUp ? t('auth.signUp') : t('auth.signIn')}
             </button>
+
+            {!isSignUp && hasAnyUser && (
+              <div className="text-center">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-fg-muted hover:text-fg transition"
+                >
+                  {t('auth.forgot')}
+                </Link>
+              </div>
+            )}
           </form>
 
-          <div className="mt-8 pt-6 border-t border-border">
-            <div className="text-xs text-fg-muted mb-2">{t('auth.defaultHint')}</div>
-            <div className="font-mono text-xs text-fg space-y-0.5">
-              <div>teamnovauzb@gmail.com</div>
-              <div>admin123</div>
+          {/* Once any user exists, signup is closed — only super admin can
+              create users via Settings → Users. */}
+          {hasAnyUser === false && (
+            <div className="mt-8 pt-6 border-t border-border text-xs text-fg-muted text-center">
+              {t('auth.signUpSubtitle')}
             </div>
-          </div>
+          )}
         </div>
       </main>
 

@@ -1,15 +1,18 @@
 import { useMemo } from 'react';
-import { Wallet, ShoppingCart, CreditCard, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Wallet, ShoppingCart, CreditCard, TrendingUp, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
+import { Skeleton, StatCardSkeleton } from '@/components/ui/Skeleton';
 import { useT } from '@/i18n/LanguageProvider';
 import { useSales } from '@/hooks/useSales';
 import { useDebts } from '@/hooks/useDebts';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useProductionLogs } from '@/hooks/useProductionLogs';
 import { useActionLogs } from '@/hooks/useActionLogs';
+import { useProducts } from '@/hooks/useProducts';
 import {
   actualCashIncome,
   expenseTotal,
@@ -32,11 +35,26 @@ const actionDot: Record<ActionType, string> = {
 
 export default function Dashboard() {
   const t = useT();
-  const { data: sales = [] } = useSales();
-  const { data: debts = [] } = useDebts();
-  const { data: expenses = [] } = useExpenses();
-  const { data: production = [] } = useProductionLogs();
-  const { data: actions = [] } = useActionLogs();
+  const salesQ = useSales();
+  const debtsQ = useDebts();
+  const expensesQ = useExpenses();
+  const productionQ = useProductionLogs();
+  const actionsQ = useActionLogs();
+  const productsQ = useProducts();
+
+  const sales = salesQ.data ?? [];
+  const debts = debtsQ.data ?? [];
+  const expenses = expensesQ.data ?? [];
+  const production = productionQ.data ?? [];
+  const actions = actionsQ.data ?? [];
+  const products = productsQ.data ?? [];
+
+  const lowStock = useMemo(
+    () => products.filter(p => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock),
+    [products],
+  );
+
+  const initialLoading = salesQ.isLoading || debtsQ.isLoading || expensesQ.isLoading || productionQ.isLoading;
 
   const now = new Date();
   const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -83,36 +101,65 @@ export default function Dashboard() {
           <PageHeader title={t('nav.dashboard')} onMenu={openMenu} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatCard
-              title={t('dash.totalIncome')}
-              value={formatUZS(totalIncome)}
-              icon={Wallet}
-              change={percentChange(totalIncome, prevIncome)}
-              changeLabel={t('dash.vsLastMonth')}
-            />
-            <StatCard
-              title={t('dash.todaySales')}
-              value={formatUZS(todaySales)}
-              icon={ShoppingCart}
-              change={percentChange(todaySales, yesterdaySales)}
-            />
-            <StatCard
-              title={t('dash.totalDebt')}
-              value={formatUZS(totalDebt)}
-              icon={CreditCard}
-              tone="negative"
-              change={percentChange(totalDebt, prevDebt)}
-              changeLabel={t('dash.vsLastMonth')}
-            />
-            <StatCard
-              title={t('dash.netProfit')}
-              value={formatUZS(profit)}
-              icon={TrendingUp}
-              tone={profit >= 0 ? 'positive' : 'negative'}
-              change={percentChange(profit, prevProfit)}
-              changeLabel={t('dash.vsLastMonth')}
-            />
+            {initialLoading ? (
+              <>
+                <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  title={t('dash.totalIncome')}
+                  value={formatUZS(totalIncome)}
+                  icon={Wallet}
+                  change={percentChange(totalIncome, prevIncome)}
+                  changeLabel={t('dash.vsLastMonth')}
+                />
+                <StatCard
+                  title={t('dash.todaySales')}
+                  value={formatUZS(todaySales)}
+                  icon={ShoppingCart}
+                  change={percentChange(todaySales, yesterdaySales)}
+                />
+                <StatCard
+                  title={t('dash.totalDebt')}
+                  value={formatUZS(totalDebt)}
+                  icon={CreditCard}
+                  tone="negative"
+                  change={percentChange(totalDebt, prevDebt)}
+                  changeLabel={t('dash.vsLastMonth')}
+                />
+                <StatCard
+                  title={t('dash.netProfit')}
+                  value={formatUZS(profit)}
+                  icon={TrendingUp}
+                  tone={profit >= 0 ? 'positive' : 'negative'}
+                  change={percentChange(profit, prevProfit)}
+                  changeLabel={t('dash.vsLastMonth')}
+                />
+              </>
+            )}
           </div>
+
+          {lowStock.length > 0 && (
+            <Link
+              to="/production"
+              className="mt-4 card p-4 flex items-center gap-3 hover:bg-surface transition group"
+            >
+              <div className="w-9 h-9 rounded-lg bg-negative/10 text-negative flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">
+                  {lowStock.length} {t('prod.lowStockAlert')}
+                </div>
+                <div className="text-xs text-fg-muted truncate">
+                  {lowStock.slice(0, 4).map(p => `${p.name} (${p.stock})`).join(' · ')}
+                  {lowStock.length > 4 ? ` +${lowStock.length - 4}` : ''}
+                </div>
+              </div>
+              <span className="text-xs text-fg-muted opacity-0 group-hover:opacity-100 transition">→</span>
+            </Link>
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
             <div className="card p-5 xl:col-span-2">
@@ -120,6 +167,9 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold">{t('dash.last7')}</h2>
               </div>
               <div className="h-72">
+                {initialLoading ? (
+                  <Skeleton className="h-full w-full" />
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
@@ -148,7 +198,11 @@ export default function Dashboard() {
                         border: '1px solid rgb(var(--border))',
                         borderRadius: 8,
                         fontSize: 12,
+                        padding: '8px 10px',
                       }}
+                      cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1, strokeDasharray: '2 4' }}
+                      offset={16}
+                      allowEscapeViewBox={{ x: true, y: true }}
                     />
                     <Legend
                       iconType="plainline"
@@ -175,6 +229,7 @@ export default function Dashboard() {
                     />
                   </LineChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -215,6 +270,9 @@ export default function Dashboard() {
                   >
                     <span className={cn('w-2 h-2 rounded-full shrink-0', actionDot[a.type])} />
                     <span className="flex-1 text-sm truncate">{a.description}</span>
+                    {a.userName ? (
+                      <span className="text-xs text-fg-muted hidden sm:inline">— {a.userName}</span>
+                    ) : null}
                     <span className="text-xs text-fg-subtle tnum">{formatDate(a.date)}</span>
                   </li>
                 ))}

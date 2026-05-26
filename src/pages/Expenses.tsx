@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Trash2, Edit, Wallet } from 'lucide-react';
+import { Trash2, Edit, Wallet, Download } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -7,11 +7,13 @@ import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useExpenses, useAddExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/useExpenses';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
+import { buildCsv, downloadCsv } from '@/lib/csv';
 import { inMonth } from '@/lib/calc';
 import type { Expense, ExpenseCategory, PaymentType } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
@@ -133,6 +135,27 @@ export default function Expenses() {
             title={t('nav.expenses')}
             onMenu={openMenu}
             onAdd={() => { reset(); setOpen(true); }}
+            rightSlot={
+              filtered.length > 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    const csv = buildCsv(filtered, [
+                      { key: 'date',        header: t('common.date'),        render: r => formatDate(r.date) },
+                      { key: 'category',    header: t('common.category'),    render: r => t(`expCat.${r.category}` as TranslationKey) },
+                      { key: 'description', header: t('common.description') },
+                      { key: 'amount',      header: t('common.amount'),      render: r => String(r.amount) },
+                      { key: 'paymentType', header: t('common.paymentType'), render: r => t(`payment.${r.paymentType}` as TranslationKey) },
+                      { key: 'auto',        header: 'auto',                  render: r => (r.auto ? 'yes' : 'no') },
+                    ]);
+                    downloadCsv(`expenses-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t('common.export')}
+                </button>
+              )
+            }
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -165,6 +188,15 @@ export default function Expenses() {
             />
           </div>
 
+          {expenses.length === 0 ? (
+            <EmptyState
+              icon={Wallet}
+              title={t('empty.expenses.title')}
+              description={t('empty.expenses.desc')}
+              actionLabel={t('exp.newTitle')}
+              onAction={() => { reset(); setOpen(true); }}
+            />
+          ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -207,6 +239,7 @@ export default function Expenses() {
               </table>
             </div>
           </div>
+          )}
 
           <Modal
             open={open}

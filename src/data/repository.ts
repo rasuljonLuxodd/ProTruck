@@ -33,6 +33,22 @@ export interface Repository {
   // sales
   listSales(): Promise<Sale[]>;
   addSale(input: Omit<Sale, 'id'>): Promise<Sale>;
+  /**
+   * Atomic sell: validates stock, decrements products, inserts sale,
+   * optionally creates a debt, and appends an action log — all in a
+   * single transaction. Throws `insufficient_stock` if any item
+   * cannot satisfy its quantity.
+   */
+  executeSale(input: {
+    customerName: string;
+    customerPhone: string;
+    items: import('@/types').CartItem[];
+    paymentType: import('@/types').PaymentType;
+    cashPart?: number;
+    debtPart?: number;
+    note?: string;
+    date: string;
+  }): Promise<{ saleId: string; debtId?: string; total: number }>;
   deleteSale(id: string): Promise<void>;
 
   // debts
