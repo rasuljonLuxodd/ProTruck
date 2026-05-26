@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useSales } from '@/hooks/useSales';
 import { useDebts } from '@/hooks/useDebts';
 import { useCreditLimits, useSetCreditLimit } from '@/hooks/useCreditLimits';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { formatUZS } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
 import { cn } from '@/lib/utils';
@@ -281,12 +282,10 @@ export default function Customers() {
             }
           >
             <Field label="Max debt (UZS)">
-              <input
-                type="number"
-                min={0}
-                className="input"
+              <MoneyInput
                 value={limitInput}
-                onChange={e => setLimitInput(Number(e.target.value))}
+                onChange={setLimitInput}
+                placeholder="0"
                 autoFocus
               />
             </Field>

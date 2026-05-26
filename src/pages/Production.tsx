@@ -17,6 +17,7 @@ import { formatDate } from '@/lib/format';
 import { productionThisMonth } from '@/lib/calc';
 import { parseCsv } from '@/lib/csv';
 import { supabase } from '@/data/supabaseClient';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import type { Product } from '@/types';
 
 export default function Production() {
@@ -326,14 +327,14 @@ export default function Production() {
             <div className="grid grid-cols-3 gap-3">
               {!editing && (
                 <Field label={t('prod.initialStock')}>
-                  <input className="input" type="number" min={0} value={initialStock} onChange={e => setInitialStock(Number(e.target.value))} />
+                  <MoneyInput value={initialStock} onChange={setInitialStock} placeholder="0" />
                 </Field>
               )}
               <Field label={t('prod.minStock')}>
-                <input className="input" type="number" min={0} value={minStock} onChange={e => setMinStock(Number(e.target.value))} />
+                <MoneyInput value={minStock} onChange={setMinStock} placeholder="10" />
               </Field>
               <Field label="VAT %">
-                <input className="input" type="number" min={0} max={100} value={vatRate} onChange={e => setVatRate(Number(e.target.value))} />
+                <MoneyInput value={vatRate} onChange={setVatRate} max={100} placeholder="0" />
               </Field>
             </div>
             <Field label="Image">
@@ -385,7 +386,7 @@ export default function Production() {
             }
           >
             <Field label={t('prod.addQty')}>
-              <input className="input" type="number" min={1} value={dailyQty} onChange={e => setDailyQty(Number(e.target.value))} />
+              <MoneyInput value={dailyQty} onChange={setDailyQty} min={1} placeholder="0" autoFocus />
             </Field>
           </Modal>
 

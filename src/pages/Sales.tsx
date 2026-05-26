@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useSales, useDeleteSale, useExecuteSale, useRefundSale } from '@/hooks/useSales';
@@ -382,12 +383,12 @@ export default function Sales() {
               </div>
               <div className="col-span-3">
                 <Field label={t('common.quantity')}>
-                  <input className="input" type="number" min={1} value={pickQty} onChange={e => setPickQty(Number(e.target.value))} />
+                  <MoneyInput value={pickQty} onChange={setPickQty} min={1} placeholder="1" />
                 </Field>
               </div>
               <div className="col-span-3">
                 <Field label={t('common.price')}>
-                  <input className="input" type="number" min={0} value={pickPrice} onChange={e => setPickPrice(Number(e.target.value))} />
+                  <MoneyInput value={pickPrice} onChange={setPickPrice} placeholder="0" />
                 </Field>
               </div>
               <div className="col-span-1">
@@ -465,10 +466,10 @@ export default function Sales() {
             {paymentType === 'aralash' && (
               <div className="grid grid-cols-2 gap-3">
                 <Field label={t('sales.cashPart')}>
-                  <input className="input" type="number" min={0} value={cashPart} onChange={e => setCashPart(Number(e.target.value))} />
+                  <MoneyInput value={cashPart} onChange={setCashPart} placeholder="0" />
                 </Field>
                 <Field label={t('sales.debtPart')}>
-                  <input className="input" type="number" min={0} value={debtPart} onChange={e => setDebtPart(Number(e.target.value))} />
+                  <MoneyInput value={debtPart} onChange={setDebtPart} placeholder="0" />
                 </Field>
               </div>
             )}

@@ -15,6 +15,7 @@ import {
   useRecurringExpenses, useAddRecurringExpense, useUpdateRecurringExpense, useDeleteRecurringExpense,
 } from '@/hooks/useRecurringExpenses';
 import { useSuppliers, useAddSupplier } from '@/hooks/useSuppliers';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
@@ -283,7 +284,7 @@ export default function Expenses() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('common.amount')}>
-                <input className="input" type="number" min={0} value={amount} onChange={e => setAmount(Number(e.target.value))} />
+                <MoneyInput value={amount} onChange={setAmount} placeholder="0" />
               </Field>
               <Field label={t('common.date')}>
                 <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
@@ -471,10 +472,10 @@ function RecurringSection() {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('common.amount')}>
-            <input className="input" type="number" min={0} value={amount} onChange={e => setAmount(Number(e.target.value))} />
+            <MoneyInput value={amount} onChange={setAmount} placeholder="0" />
           </Field>
           <Field label={t('exp.dayOfMonth')}>
-            <input className="input" type="number" min={1} max={28} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))} />
+            <MoneyInput value={dayOfMonth} onChange={setDayOfMonth} min={1} max={28} placeholder="1" />
           </Field>
         </div>
         <Field label={t('common.paymentType')}>

@@ -7,6 +7,7 @@ import { Field } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PrintableSlip } from '@/components/ui/PrintableSlip';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { supabase } from '@/data/supabaseClient';
 import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/i18n/LanguageProvider';
@@ -396,13 +397,11 @@ export default function Workers() {
               />
             </Field>
             <Field label={t('wrk.salary')} hint="UZS / oy">
-              <input
-                className="input"
-                type="number"
+              <MoneyInput
                 min={1}
-                value={salary || ''}
-                onChange={e => setSalary(Number(e.target.value))}
-                placeholder="3000000"
+                value={salary}
+                onChange={setSalary}
+                placeholder="3 000 000"
               />
             </Field>
           </Modal>
@@ -421,7 +420,7 @@ export default function Workers() {
           >
             {bonusFor && <div className="text-sm text-fg-muted">{bonusFor.name}</div>}
             <Field label={t('common.amount')}>
-              <input className="input" type="number" min={0} value={bonusAmount} onChange={e => setBonusAmount(Number(e.target.value))} />
+              <MoneyInput value={bonusAmount} onChange={setBonusAmount} placeholder="0" />
             </Field>
           </Modal>
 
@@ -439,7 +438,7 @@ export default function Workers() {
           >
             {penaltyFor && <div className="text-sm text-fg-muted">{penaltyFor.name}</div>}
             <Field label={t('common.amount')}>
-              <input className="input" type="number" min={0} value={penaltyAmount} onChange={e => setPenaltyAmount(Number(e.target.value))} />
+              <MoneyInput value={penaltyAmount} onChange={setPenaltyAmount} placeholder="0" />
             </Field>
           </Modal>
 
@@ -462,7 +461,7 @@ export default function Workers() {
               </select>
             </Field>
             <Field label={t('common.amount')}>
-              <input className="input" type="number" min={0} value={advanceAmount} onChange={e => setAdvanceAmount(Number(e.target.value))} />
+              <MoneyInput value={advanceAmount} onChange={setAdvanceAmount} placeholder="0" />
             </Field>
           </Modal>
 
@@ -485,7 +484,7 @@ export default function Workers() {
                   <div className="text-2xl font-semibold tnum mt-0.5">{formatUZS(workerPayoutDue(payFor))}</div>
                 </div>
                 <Field label={t('wrk.paymentAmount')}>
-                  <input className="input" type="number" min={0} value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} />
+                  <MoneyInput value={payAmount} onChange={setPayAmount} placeholder="0" />
                 </Field>
                 <Field label={t('common.paymentType')}>
                   <div className="grid grid-cols-2 gap-1.5">

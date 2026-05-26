@@ -14,6 +14,7 @@ import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, daysBetween, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import type { Debt } from '@/types';
 
 export default function Debts() {
@@ -263,7 +264,7 @@ export default function Debts() {
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label={t('debts.amount')}>
-                <input className="input" type="number" min={0} value={amount} onChange={e => setAmount(Number(e.target.value))} />
+                <MoneyInput value={amount} onChange={setAmount} placeholder="0" />
               </Field>
               <Field label={t('common.date')}>
                 <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
@@ -296,13 +297,12 @@ export default function Debts() {
                   <div className="text-2xl font-semibold text-negative tnum">{formatUZS(partial.amount)}</div>
                 </div>
                 <Field label={t('debts.amount')}>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    max={partial.amount}
+                  <MoneyInput
                     value={partialAmount}
-                    onChange={e => setPartialAmount(Number(e.target.value))}
+                    onChange={setPartialAmount}
+                    max={partial.amount}
+                    placeholder="0"
+                    autoFocus
                   />
                 </Field>
               </>
