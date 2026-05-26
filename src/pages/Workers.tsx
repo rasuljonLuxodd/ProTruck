@@ -89,32 +89,63 @@ export default function Workers() {
   }
 
   function addNewWorker() {
-    if (!name.trim() || salary <= 0) return;
+    if (!name.trim()) {
+      toast(t('form.nameRequired'), 'error');
+      return;
+    }
+    if (salary <= 0) {
+      toast(t('form.positive'), 'error');
+      return;
+    }
     addWorker.mutate(
       { name: name.trim(), monthlySalary: salary },
-      { onSuccess: () => { toast(t('toast.saved')); setNewOpen(false); setName(''); setSalary(0); } },
+      {
+        onSuccess: () => { toast(t('toast.saved')); setNewOpen(false); setName(''); setSalary(0); },
+        onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
+      },
     );
   }
 
   function saveBonus() {
-    if (!bonusFor || bonusAmount <= 0) return;
+    if (!bonusFor) return;
+    if (bonusAmount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     updWorker.mutate(
       { id: bonusFor.id, patch: { bonus: bonusFor.bonus + bonusAmount } },
-      { onSuccess: () => { toast(t('toast.saved')); setBonusFor(null); setBonusAmount(0); } },
+      {
+        onSuccess: () => { toast(t('toast.saved')); setBonusFor(null); setBonusAmount(0); },
+        onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
+      },
     );
   }
 
   function savePenalty() {
-    if (!penaltyFor || penaltyAmount <= 0) return;
+    if (!penaltyFor) return;
+    if (penaltyAmount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     updWorker.mutate(
       { id: penaltyFor.id, patch: { penalty: penaltyFor.penalty + penaltyAmount } },
-      { onSuccess: () => { toast(t('toast.saved')); setPenaltyFor(null); setPenaltyAmount(0); } },
+      {
+        onSuccess: () => { toast(t('toast.saved')); setPenaltyFor(null); setPenaltyAmount(0); },
+        onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
+      },
     );
   }
 
   function saveAdvance() {
     const worker = workers.find(w => w.id === advanceWorkerId);
-    if (!worker || advanceAmount <= 0) return;
+    if (!worker) {
+      toast(t('wrk.pickWorker'), 'error');
+      return;
+    }
+    if (advanceAmount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     updWorker.mutate(
       { id: worker.id, patch: { advance: worker.advance + advanceAmount } },
       {
@@ -137,12 +168,17 @@ export default function Workers() {
           setAdvanceWorkerId('');
           setAdvanceAmount(0);
         },
+        onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
       },
     );
   }
 
   function savePayment() {
-    if (!payFor || payAmount <= 0) return;
+    if (!payFor) return;
+    if (payAmount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     const snapshot = {
       workDays: payFor.workDays,
       bonus: payFor.bonus,
@@ -179,13 +215,17 @@ export default function Workers() {
           toast(t('toast.paid'));
           setPayFor(null); setPayAmount(0); setPayType('naqd'); setPayNote('');
         },
+        onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
       },
     );
   }
 
   function handleDelete() {
     if (!confirmDel) return;
-    delWorker.mutate(confirmDel, { onSuccess: () => { toast(t('toast.deleted')); setConfirmDel(null); } });
+    delWorker.mutate(confirmDel, {
+      onSuccess: () => { toast(t('toast.deleted')); setConfirmDel(null); },
+      onError: err => toast(err instanceof Error ? err.message : t('toast.error'), 'error'),
+    });
   }
 
   return (
@@ -337,16 +377,33 @@ export default function Workers() {
             size="sm"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setNewOpen(false)}>{t('common.cancel')}</button>
-                <button className="btn-primary" onClick={addNewWorker}>{t('common.save')}</button>
+                <button className="btn-secondary" onClick={() => setNewOpen(false)} disabled={addWorker.isPending}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn-primary" onClick={addNewWorker} disabled={addWorker.isPending}>
+                  {addWorker.isPending ? '…' : t('common.save')}
+                </button>
               </>
             }
           >
             <Field label={t('common.customer')}>
-              <input className="input" value={name} onChange={e => setName(e.target.value)} />
+              <input
+                className="input"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                autoFocus
+                placeholder="Bekzod Aliyev"
+              />
             </Field>
-            <Field label={t('wrk.salary')}>
-              <input className="input" type="number" min={0} value={salary} onChange={e => setSalary(Number(e.target.value))} />
+            <Field label={t('wrk.salary')} hint="UZS / oy">
+              <input
+                className="input"
+                type="number"
+                min={1}
+                value={salary || ''}
+                onChange={e => setSalary(Number(e.target.value))}
+                placeholder="3000000"
+              />
             </Field>
           </Modal>
 

@@ -104,7 +104,14 @@ export default function Expenses() {
   }
 
   function save() {
-    if (amount <= 0 || !description.trim()) return;
+    if (!description.trim()) {
+      toast(t('common.description') + ': ' + t('form.required'), 'error');
+      return;
+    }
+    if (amount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     const payload: Omit<Expense, 'id'> = {
       category,
       description: description.trim(),

@@ -66,7 +66,14 @@ export default function Debts() {
   }
 
   function handleAddDebt() {
-    if (!name.trim() || amount <= 0) return;
+    if (!name.trim()) {
+      toast(t('form.nameRequired'), 'error');
+      return;
+    }
+    if (amount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     addDebt.mutate(
       {
         customerName: name.trim(),
@@ -83,7 +90,11 @@ export default function Debts() {
   }
 
   function handlePartial() {
-    if (!partial || partialAmount <= 0) return;
+    if (!partial) return;
+    if (partialAmount <= 0) {
+      toast(t('form.amountRequired'), 'error');
+      return;
+    }
     payPartial.mutate(
       { id: partial.id, payment: { amount: partialAmount, date: new Date().toISOString() } },
       {

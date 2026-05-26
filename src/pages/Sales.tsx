@@ -158,7 +158,14 @@ export default function Sales() {
   }
 
   function handleSave() {
-    if (!customerName.trim() || cart.length === 0) return;
+    if (!customerName.trim()) {
+      toast(t('sales.customerName') + ': ' + t('form.required'), 'error');
+      return;
+    }
+    if (cart.length === 0) {
+      toast(t('sales.cartEmpty'), 'error');
+      return;
+    }
     const date = new Date().toISOString();
 
     executeSale.mutate(

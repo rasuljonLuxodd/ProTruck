@@ -128,7 +128,10 @@ export default function Production() {
   }, [products]);
 
   function handleSaveNew() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast(t('form.nameRequired'), 'error');
+      return;
+    }
     if (editing) {
       updateProduct.mutate(
         { id: editing.id, patch: { name: name.trim(), minStock, imageUrl, vatRate } },
@@ -160,7 +163,11 @@ export default function Production() {
   }
 
   function handleAddDaily() {
-    if (!dailyOpen || dailyQty <= 0) return;
+    if (!dailyOpen) return;
+    if (dailyQty <= 0) {
+      toast(t('form.positive'), 'error');
+      return;
+    }
     const product = products.find(p => p.id === dailyOpen);
     if (!product) return;
     addLog.mutate(

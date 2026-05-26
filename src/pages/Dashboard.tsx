@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Wallet, ShoppingCart, CreditCard, TrendingUp, AlertTriangle } from 'lucide-react';
+import {
+  Wallet, ShoppingCart, CreditCard, TrendingUp, AlertTriangle,
+  Package, Users as UsersIcon, Receipt,
+} from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Skeleton, StatCardSkeleton } from '@/components/ui/Skeleton';
+import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/OnboardingChecklist';
+import { useWorkers } from '@/hooks/useWorkers';
 import { useT } from '@/i18n/LanguageProvider';
 import { useSales } from '@/hooks/useSales';
 import { useDebts } from '@/hooks/useDebts';
@@ -43,6 +48,7 @@ export default function Dashboard() {
   const productionQ = useProductionLogs();
   const actionsQ = useActionLogs();
   const productsQ = useProducts();
+  const workersQ = useWorkers();
 
   const sales = salesQ.data ?? [];
   const debts = debtsQ.data ?? [];
@@ -50,13 +56,27 @@ export default function Dashboard() {
   const production = productionQ.data ?? [];
   const actions = actionsQ.data ?? [];
   const products = productsQ.data ?? [];
+  const workers = workersQ.data ?? [];
 
   const lowStock = useMemo(
     () => products.filter(p => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock),
     [products],
   );
 
+  // First-run? If nothing exists yet, show the onboarding checklist instead
+  // of the four-zeros wasteland.
+  const onboardingSteps = useMemo<OnboardingStep[]>(() => [
+    { labelKey: 'welcome.step1', descKey: 'welcome.step1Desc', to: '/production', done: products.length > 0,  icon: Package },
+    { labelKey: 'welcome.step2', descKey: 'welcome.step2Desc', to: '/sales',      done: sales.length > 0,     icon: ShoppingCart },
+    { labelKey: 'welcome.step3', descKey: 'welcome.step3Desc', to: '/workers',    done: workers.length > 0,   icon: UsersIcon },
+    { labelKey: 'welcome.step4', descKey: 'welcome.step4Desc', to: '/expenses',   done: expenses.length > 0,  icon: Receipt },
+  ], [products.length, sales.length, workers.length, expenses.length]);
+
   const initialLoading = salesQ.isLoading || debtsQ.isLoading || expensesQ.isLoading || productionQ.isLoading;
+
+  // Show the onboarding checklist as long as there are no sales yet — once
+  // sales start flowing the dashboard has meaningful data to display.
+  const showOnboarding = !initialLoading && sales.length === 0;
 
   const now = new Date();
   const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -102,6 +122,9 @@ export default function Dashboard() {
         <>
           <PageHeader title={t('nav.dashboard')} onMenu={openMenu} />
 
+          {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
+
+          {!showOnboarding && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {initialLoading ? (
               <>
@@ -141,6 +164,7 @@ export default function Dashboard() {
               </>
             )}
           </div>
+          )}
 
           {lowStock.length > 0 && (
             <Link
