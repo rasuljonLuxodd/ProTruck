@@ -1,6 +1,7 @@
 import type {
   Product,
   ProductionLog,
+  BomItem,
   Sale,
   Debt,
   DebtPayment,
@@ -27,6 +28,14 @@ interface ProductRow {
   image_url: string | null;
   created_at: string;
   last_updated: string;
+}
+interface BomItemRow {
+  id: string;
+  product_id: string;
+  input_product_id: string;
+  quantity_per_unit: number;
+  note: string | null;
+  created_at: string;
 }
 interface ProductionLogRow {
   id: string;
@@ -271,6 +280,67 @@ export class SupabaseRepository implements Repository {
       .select()
       .single();
     return mapProductionLog(throwIfError(data, error, 'addProductionLog'));
+  }
+
+  async produceWithBom(productId: string, quantity: number, date?: string): Promise<void> {
+    const { error } = await supabase.rpc('produce_with_bom', {
+      p_product_id: productId,
+      p_quantity: quantity,
+      p_date: date ?? new Date().toISOString(),
+    });
+    if (error) {
+      // surface the typed error so the UI can show the right toast
+      throw new Error(error.message);
+    }
+  }
+
+  // ============== bill of materials ==============
+  async listBomItems(productId: string): Promise<BomItem[]> {
+    const { data, error } = await supabase
+      .from('bom_items')
+      .select('*')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: true });
+    return throwIfError(data, error, 'listBomItems').map((r: BomItemRow) => ({
+      id: r.id,
+      productId: r.product_id,
+      inputProductId: r.input_product_id,
+      quantityPerUnit: Number(r.quantity_per_unit),
+      note: r.note ?? undefined,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async upsertBomItem(input: Omit<BomItem, 'id' | 'createdAt'>): Promise<BomItem> {
+    // We rely on the (product_id, input_product_id) UNIQUE constraint to
+    // collapse duplicates — this lets the UI "save" without checking first.
+    const { data, error } = await supabase
+      .from('bom_items')
+      .upsert(
+        {
+          product_id: input.productId,
+          input_product_id: input.inputProductId,
+          quantity_per_unit: input.quantityPerUnit,
+          note: input.note ?? null,
+        },
+        { onConflict: 'product_id,input_product_id' },
+      )
+      .select()
+      .single();
+    const r = throwIfError(data, error, 'upsertBomItem') as BomItemRow;
+    return {
+      id: r.id,
+      productId: r.product_id,
+      inputProductId: r.input_product_id,
+      quantityPerUnit: Number(r.quantity_per_unit),
+      note: r.note ?? undefined,
+      createdAt: r.created_at,
+    };
+  }
+
+  async deleteBomItem(id: string): Promise<void> {
+    const { error } = await supabase.from('bom_items').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   // ============== sales ==============

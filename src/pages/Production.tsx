@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Package, Edit, Upload } from 'lucide-react';
+import { Plus, Trash2, Package, Edit, Upload, ListTree } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -11,7 +11,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { useProducts, useAddProduct, useDeleteProduct, useUpdateProduct } from '@/hooks/useProducts';
-import { useProductionLogs, useAddProductionLog } from '@/hooks/useProductionLogs';
+import { useProductionLogs } from '@/hooks/useProductionLogs';
+import { useProduceWithBom } from '@/hooks/useBomItems';
+import { BomEditor } from '@/components/ui/BomEditor';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatDate } from '@/lib/format';
 import { productionThisMonth } from '@/lib/calc';
@@ -28,7 +30,7 @@ export default function Production() {
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
-  const addLog = useAddProductionLog();
+  const produceWithBom = useProduceWithBom();
   const addAction = useAddActionLog();
 
   const [newOpen, setNewOpen] = useState(false);
@@ -83,6 +85,7 @@ export default function Production() {
 
   const [dailyOpen, setDailyOpen] = useState<string | null>(null);
   const [dailyQty, setDailyQty] = useState(0);
+  const [bomFor, setBomFor] = useState<Product | null>(null);
 
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -195,19 +198,28 @@ export default function Production() {
     }
     const product = products.find(p => p.id === dailyOpen);
     if (!product) return;
-    addLog.mutate(
+
+    // Use the BOM-aware RPC: this atomically deducts raw materials AND
+    // increments finished stock AND inserts the production log. If the
+    // product has no BOM rows, the RPC just increments stock + logs.
+    produceWithBom.mutate(
       { productId: product.id, quantity: dailyQty, date: new Date().toISOString() },
       {
         onSuccess: () => {
-          updateProduct.mutate({ id: product.id, patch: { stock: product.stock + dailyQty } });
           addAction.mutate({
             type: 'production',
             description: `+${dailyQty} ${product.name}`,
             date: new Date().toISOString(),
           });
-          toast(t('toast.saved'));
+          toast(t('prod.producedWithBom'));
           setDailyOpen(null);
           setDailyQty(0);
+        },
+        onError: (err) => {
+          const msg = err instanceof Error && err.message.includes('insufficient_raw_material')
+            ? t('prod.insufficientRaw')
+            : t('toast.error');
+          toast(msg, 'error');
         },
       },
     );
@@ -306,6 +318,13 @@ export default function Production() {
                         >
                           <Plus className="w-3 h-3" />
                           {t('prod.dailyAdd')}
+                        </button>
+                        <button
+                          className="btn-ghost !py-1.5"
+                          onClick={() => setBomFor(p)}
+                          title={t('prod.bom')}
+                        >
+                          <ListTree className="w-3.5 h-3.5" />
                         </button>
                         <button
                           className="btn-ghost !py-1.5"
@@ -416,11 +435,11 @@ export default function Production() {
             size="sm"
             footer={
               <>
-                <button className="btn-secondary" onClick={() => setDailyOpen(null)} disabled={addLog.isPending}>
+                <button className="btn-secondary" onClick={() => setDailyOpen(null)} disabled={produceWithBom.isPending}>
                   {t('common.cancel')}
                 </button>
-                <button className="btn-primary" onClick={handleAddDaily} disabled={addLog.isPending}>
-                  {addLog.isPending ? '…' : t('common.save')}
+                <button className="btn-primary" onClick={handleAddDaily} disabled={produceWithBom.isPending}>
+                  {produceWithBom.isPending ? '…' : t('common.save')}
                 </button>
               </>
             }
@@ -434,6 +453,12 @@ export default function Production() {
             open={!!confirmDel}
             onConfirm={handleDelete}
             onCancel={() => setConfirmDel(null)}
+          />
+
+          <BomEditor
+            product={bomFor}
+            allProducts={products}
+            onClose={() => setBomFor(null)}
           />
 
           <Modal

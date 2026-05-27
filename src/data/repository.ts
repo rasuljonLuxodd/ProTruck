@@ -1,6 +1,7 @@
 import type {
   Product,
   ProductionLog,
+  BomItem,
   Sale,
   Debt,
   DebtPayment,
@@ -30,6 +31,18 @@ export interface Repository {
   // production
   listProductionLogs(): Promise<ProductionLog[]>;
   addProductionLog(input: Omit<ProductionLog, 'id'>): Promise<ProductionLog>;
+  /**
+   * Atomic produce-with-BOM: increments the finished product's stock
+   * AND deducts each raw input (`qty × quantity_per_unit`). Throws
+   * `insufficient_raw_material` if any input is short. If the product
+   * has no BOM rows, behaves like `addProductionLog`.
+   */
+  produceWithBom(productId: string, quantity: number, date?: string): Promise<void>;
+
+  // bill of materials
+  listBomItems(productId: string): Promise<BomItem[]>;
+  upsertBomItem(input: Omit<BomItem, 'id' | 'createdAt'>): Promise<BomItem>;
+  deleteBomItem(id: string): Promise<void>;
 
   // sales
   listSales(): Promise<Sale[]>;

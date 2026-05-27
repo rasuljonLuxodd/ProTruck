@@ -35,6 +35,21 @@ export interface ProductionLog {
   date: string;
 }
 
+/**
+ * One row of a product's Bill of Materials — describes a raw input
+ * that gets consumed when one unit of the finished product is produced.
+ */
+export interface BomItem {
+  id: string;
+  /** finished product this BOM belongs to */
+  productId: string;
+  /** raw input consumed per unit produced */
+  inputProductId: string;
+  quantityPerUnit: number;
+  note?: string;
+  createdAt: string;
+}
+
 export interface CartItem {
   productId: string;
   productName: string;

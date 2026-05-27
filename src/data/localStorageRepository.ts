@@ -1,6 +1,7 @@
 import type {
   Product,
   ProductionLog,
+  BomItem,
   Sale,
   Debt,
   DebtPayment,
@@ -17,6 +18,7 @@ import type { Repository } from './repository';
 const KEYS = {
   products: 'protrack:products',
   productionLogs: 'protrack:productionLogs',
+  bomItems: 'protrack:bomItems',
   sales: 'protrack:sales',
   debts: 'protrack:debts',
   expenses: 'protrack:expenses',
@@ -109,6 +111,67 @@ export class LocalStorageRepository implements Repository {
     logs.push(log);
     write(KEYS.productionLogs, logs);
     return log;
+  }
+
+  async produceWithBom(productId: string, quantity: number, date?: string): Promise<void> {
+    if (quantity <= 0) throw new Error('invalid_quantity');
+    const items = read<BomItem>(KEYS.bomItems).filter(b => b.productId === productId);
+    const products = read<Product>(KEYS.products);
+    const byId = new Map(products.map(p => [p.id, p] as const));
+
+    // Validate raw materials first so we don't apply a partial deduction
+    for (const it of items) {
+      const raw = byId.get(it.inputProductId);
+      if (!raw) throw new Error('input_missing');
+      const needed = quantity * it.quantityPerUnit;
+      if ((raw.stock ?? 0) < needed) throw new Error('insufficient_raw_material');
+    }
+
+    // Apply deductions
+    for (const it of items) {
+      const raw = byId.get(it.inputProductId)!;
+      raw.stock -= quantity * it.quantityPerUnit;
+      raw.lastUpdated = nowISO();
+    }
+    // Increment finished product
+    const finished = byId.get(productId);
+    if (finished) {
+      finished.stock += quantity;
+      finished.lastUpdated = nowISO();
+    }
+
+    write(KEYS.products, [...byId.values()]);
+
+    // Log production
+    const logs = read<ProductionLog>(KEYS.productionLogs);
+    logs.push({ id: uid(), productId, quantity, date: date ?? nowISO() });
+    write(KEYS.productionLogs, logs);
+  }
+
+  // -------- bill of materials --------
+  async listBomItems(productId: string): Promise<BomItem[]> {
+    return read<BomItem>(KEYS.bomItems).filter(b => b.productId === productId);
+  }
+
+  async upsertBomItem(input: Omit<BomItem, 'id' | 'createdAt'>): Promise<BomItem> {
+    const items = read<BomItem>(KEYS.bomItems);
+    const existing = items.find(
+      b => b.productId === input.productId && b.inputProductId === input.inputProductId,
+    );
+    if (existing) {
+      existing.quantityPerUnit = input.quantityPerUnit;
+      existing.note = input.note;
+      write(KEYS.bomItems, items);
+      return existing;
+    }
+    const created: BomItem = { ...input, id: uid(), createdAt: nowISO() };
+    items.push(created);
+    write(KEYS.bomItems, items);
+    return created;
+  }
+
+  async deleteBomItem(id: string): Promise<void> {
+    write(KEYS.bomItems, read<BomItem>(KEYS.bomItems).filter(b => b.id !== id));
   }
 
   // -------- sales --------
