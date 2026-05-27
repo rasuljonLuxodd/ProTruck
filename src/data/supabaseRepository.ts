@@ -22,6 +22,8 @@ interface ProductRow {
   stock: number;
   min_stock: number;
   vat_rate: number;
+  cost: number;
+  default_price: number | null;
   image_url: string | null;
   created_at: string;
   last_updated: string;
@@ -112,6 +114,8 @@ const mapProduct = (r: ProductRow): Product => ({
   stock: r.stock,
   minStock: r.min_stock ?? 10,
   vatRate: Number(r.vat_rate ?? 0),
+  cost: Number(r.cost ?? 0),
+  defaultPrice: r.default_price == null ? undefined : Number(r.default_price),
   imageUrl: r.image_url ?? undefined,
   createdAt: r.created_at,
   lastUpdated: r.last_updated,
@@ -218,6 +222,8 @@ export class SupabaseRepository implements Repository {
         stock: input.stock,
         min_stock: input.minStock ?? 10,
         vat_rate: input.vatRate ?? 0,
+        cost: input.cost ?? 0,
+        default_price: input.defaultPrice ?? null,
         image_url: input.imageUrl ?? null,
       })
       .select()
@@ -231,6 +237,8 @@ export class SupabaseRepository implements Repository {
     if (patch.stock !== undefined) payload.stock = patch.stock;
     if (patch.minStock !== undefined) payload.min_stock = patch.minStock;
     if (patch.vatRate !== undefined) payload.vat_rate = patch.vatRate;
+    if (patch.cost !== undefined) payload.cost = patch.cost;
+    if (patch.defaultPrice !== undefined) payload.default_price = patch.defaultPrice ?? null;
     if (patch.imageUrl !== undefined) payload.image_url = patch.imageUrl;
 
     const { data, error } = await supabase

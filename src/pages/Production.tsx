@@ -39,6 +39,8 @@ export default function Production() {
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [uploading, setUploading] = useState(false);
   const [vatRate, setVatRate] = useState(0);
+  const [cost, setCost] = useState(0);
+  const [defaultPrice, setDefaultPrice] = useState(0);
 
   function openEdit(p: Product) {
     setEditing(p);
@@ -46,6 +48,8 @@ export default function Production() {
     setMinStock(p.minStock);
     setImageUrl(p.imageUrl);
     setVatRate(p.vatRate ?? 0);
+    setCost(p.cost ?? 0);
+    setDefaultPrice(p.defaultPrice ?? 0);
     setNewOpen(true);
   }
   function openNew() {
@@ -55,6 +59,8 @@ export default function Production() {
     setMinStock(10);
     setImageUrl(undefined);
     setVatRate(0);
+    setCost(0);
+    setDefaultPrice(0);
     setNewOpen(true);
   }
 
@@ -108,7 +114,7 @@ export default function Production() {
       try {
         await new Promise<void>((resolve, reject) => {
           addProduct.mutate(
-            { ...row, vatRate: 0 },
+            { ...row, vatRate: 0, cost: 0 },
             { onSuccess: () => resolve(), onError: reject },
           );
         });
@@ -135,7 +141,17 @@ export default function Production() {
     }
     if (editing) {
       updateProduct.mutate(
-        { id: editing.id, patch: { name: name.trim(), minStock, imageUrl, vatRate } },
+        {
+          id: editing.id,
+          patch: {
+            name: name.trim(),
+            minStock,
+            imageUrl,
+            vatRate,
+            cost,
+            defaultPrice: defaultPrice > 0 ? defaultPrice : undefined,
+          },
+        },
         {
           onSuccess: () => {
             toast(t('toast.saved'));
@@ -147,7 +163,15 @@ export default function Production() {
       );
     } else {
       addProduct.mutate(
-        { name: name.trim(), stock: initialStock, minStock, imageUrl, vatRate },
+        {
+          name: name.trim(),
+          stock: initialStock,
+          minStock,
+          imageUrl,
+          vatRate,
+          cost,
+          defaultPrice: defaultPrice > 0 ? defaultPrice : undefined,
+        },
         {
           onSuccess: () => {
             toast(t('toast.saved'));
@@ -337,6 +361,22 @@ export default function Production() {
                 <MoneyInput value={vatRate} onChange={setVatRate} max={100} placeholder="0" />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('prod.unitCost')} hint={t('prod.unitCostHint')}>
+                <MoneyInput value={cost} onChange={setCost} placeholder="0" />
+              </Field>
+              <Field label={t('prod.defaultPrice')} hint={t('prod.defaultPriceHint')}>
+                <MoneyInput value={defaultPrice} onChange={setDefaultPrice} placeholder="—" />
+              </Field>
+            </div>
+            {cost > 0 && defaultPrice > 0 && (
+              <div className="text-xs text-fg-muted -mt-1 px-1 tnum">
+                {t('prod.estimatedMargin')}:{' '}
+                <span className={defaultPrice > cost ? 'text-positive font-semibold' : 'text-negative font-semibold'}>
+                  {(((defaultPrice - cost) / defaultPrice) * 100).toFixed(1)}%
+                </span>
+              </div>
+            )}
             <Field label="Image">
               <div className="flex items-center gap-3">
                 {imageUrl ? (

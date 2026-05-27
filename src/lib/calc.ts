@@ -112,6 +112,29 @@ export function last7DaysSeries(sales: Sale[], production: ProductionLog[]) {
 }
 
 /**
+ * Gross margin earned on a sale: sum over cart items of
+ *   (sellingPrice − unitCost) × quantity.
+ *
+ * Looks up the product's `cost` by id; products missing from the map (or
+ * with cost = 0) contribute 0 to the cost side, so the margin equals
+ * revenue. UI should surface that as a warning so the owner knows the
+ * margin is overstated.
+ */
+export function saleMargin(sale: Sale, productsById: Map<string, { cost: number }>): number {
+  let margin = 0;
+  for (const item of sale.items) {
+    const cost = productsById.get(item.productId)?.cost ?? 0;
+    margin += (item.price - cost) * item.quantity;
+  }
+  return margin;
+}
+
+/** Sum of margins across many sales. */
+export function totalMargin(sales: Sale[], productsById: Map<string, { cost: number }>): number {
+  return sales.reduce((sum, s) => sum + saleMargin(s, productsById), 0);
+}
+
+/**
  * Generic daily-series builder used by the StatCard sparklines.
  * Bucketizes items by day (oldest → newest) for the last `days` days
  * including today. Items without a parseable date are skipped.

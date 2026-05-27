@@ -27,6 +27,8 @@ export function useAddProduct() {
         stock: input.stock,
         minStock: input.minStock ?? 10,
         vatRate: input.vatRate ?? 0,
+        cost: input.cost ?? 0,
+        defaultPrice: input.defaultPrice,
         imageUrl: input.imageUrl,
         createdAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString(),

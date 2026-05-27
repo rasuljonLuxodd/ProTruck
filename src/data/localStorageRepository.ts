@@ -65,6 +65,7 @@ export class LocalStorageRepository implements Repository {
       ...p,
       minStock: p.minStock ?? 10,
       vatRate: p.vatRate ?? 0,
+      cost: p.cost ?? 0,
     }));
   }
 
@@ -73,6 +74,7 @@ export class LocalStorageRepository implements Repository {
     const product: Product = {
       ...input,
       minStock: input.minStock ?? 10,
+      cost: input.cost ?? 0,
       id: uid(),
       createdAt: nowISO(),
       lastUpdated: nowISO(),

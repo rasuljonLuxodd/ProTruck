@@ -10,6 +10,19 @@ export interface Product {
   stock: number;
   minStock: number;
   vatRate: number;        // 0..100
+  /**
+   * Unit cost — what it costs to produce or acquire one unit. Used for
+   * gross-margin calculations. Defaults to 0 for legacy rows; UI surfaces
+   * a warning when cost is 0 so the owner can't be silently misled into
+   * thinking everything is pure profit.
+   */
+  cost: number;
+  /**
+   * Optional default selling price. When set, the Sales modal pre-fills
+   * this when the product is picked. Leave null to require manual entry
+   * (useful when prices are negotiated per sale).
+   */
+  defaultPrice?: number;
   imageUrl?: string;
   createdAt: string;
   lastUpdated: string;

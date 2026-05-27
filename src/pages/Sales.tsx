@@ -18,7 +18,7 @@ import { useDebts } from '@/hooks/useDebts';
 import { useCreditLimits } from '@/hooks/useCreditLimits';
 import { formatUZS, formatDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
-import { actualCashIncome, inMonth, outstandingDebt, dailySeries } from '@/lib/calc';
+import { actualCashIncome, inMonth, outstandingDebt, dailySeries, totalMargin } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { salePdf } from '@/lib/pdfCheque';
 import { cn } from '@/lib/utils';
@@ -73,6 +73,19 @@ export default function Sales() {
   // decremented as payments come in). Summing s.debtPart from sales would
   // double-count anything already paid off.
   const customerDebt = useMemo(() => outstandingDebt(debts), [debts]);
+
+  // Index products by id once so margin calc isn't O(n²)
+  const productsById = useMemo(() => {
+    const m = new Map<string, { cost: number }>();
+    for (const p of products) m.set(p.id, { cost: p.cost });
+    return m;
+  }, [products]);
+
+  // Monthly gross margin (this is the real profit indicator)
+  const monthMargin = useMemo(
+    () => totalMargin(monthSales, productsById),
+    [monthSales, productsById],
+  );
 
   // 14-day sparkline series for the stat cards
   const dailyRevenue = useMemo(
@@ -251,7 +264,7 @@ export default function Sales() {
             }
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
             <StatCard
               title={t('sales.monthlyTotal')}
               value={formatUZS(monthTotal)}
@@ -263,6 +276,11 @@ export default function Sales() {
               value={formatUZS(actualIncome)}
               tone="positive"
               series={dailyCash}
+            />
+            <StatCard
+              title={t('sales.grossMargin')}
+              value={formatUZS(monthMargin)}
+              tone={monthMargin >= 0 ? 'positive' : 'negative'}
             />
             <StatCard
               title={t('sales.customerDebt')}
@@ -408,7 +426,16 @@ export default function Sales() {
                 <Field label={t('common.product')}>
                   <Select
                     value={pickProductId}
-                    onChange={setPickProductId}
+                    onChange={(id) => {
+                      setPickProductId(id);
+                      // Auto-fill the price if the product has a default —
+                      // saves typing for catalog items, doesn't get in the
+                      // way for negotiated sales (price is still editable).
+                      const p = products.find(x => x.id === id);
+                      if (p?.defaultPrice && pickPrice === 0) {
+                        setPickPrice(p.defaultPrice);
+                      }
+                    }}
                     placeholder={t('sales.selectProduct')}
                     options={products.map(p => ({
                       value: p.id,
