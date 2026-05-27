@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Trash2, Search, CreditCard, Download, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { customerProfilePath } from '@/pages/Customers';
+import { customerProfilePath } from '@/lib/customerSlug';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';

@@ -441,8 +441,9 @@ export class LocalStorageRepository implements Repository {
   }
 
   // -------- action logs --------
-  async listActionLogs(): Promise<ActionLog[]> {
-    return read<ActionLog>(KEYS.actionLogs);
+  async listActionLogs(limit?: number): Promise<ActionLog[]> {
+    const all = read<ActionLog>(KEYS.actionLogs);
+    return typeof limit === 'number' ? all.slice(0, limit) : all;
   }
 
   async addActionLog(input: Omit<ActionLog, 'id'>): Promise<ActionLog> {

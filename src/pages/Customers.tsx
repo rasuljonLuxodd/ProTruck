@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Search, User as UserIcon, Shield, MessageCircle, Phone, ArrowLeft, TrendingUp } from 'lucide-react';
+import { customerSlug, customerProfilePath as _customerProfilePath } from '@/lib/customerSlug';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +13,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useSales } from '@/hooks/useSales';
 import { useDebts } from '@/hooks/useDebts';
 import { useProducts } from '@/hooks/useProducts';
-import { useCreditLimits, useSetCreditLimit } from '@/hooks/useCreditLimits';
+import { useCreditLimits, useSetCreditLimit, useSetCustomerNotes } from '@/hooks/useCreditLimits';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { formatUZS } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
@@ -30,16 +31,10 @@ interface CustomerRow {
   lastSeen: string;
 }
 
-/**
- * URL slug for a customer = name with non-alphanumerics replaced by `-`,
- * lowercased. Same algo on the link side so round-trips are stable. Two
- * different customers with the same name will collide — accepted for now,
- * a tiny manufacturing business is unlikely to hit that edge case before
- * we add proper customer IDs.
- */
-function customerSlug(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9Ѐ-ӿ]+/g, '-').replace(/^-+|-+$/g, '');
-}
+// customerSlug + customerProfilePath now live in @/lib/customerSlug so
+// other pages can import them without pulling this whole page into
+// their bundle. _customerProfilePath import is just for the trailing
+// re-export below (preserved for backward compatibility).
 
 export default function Customers() {
   const t = useT();
@@ -53,7 +48,10 @@ export default function Customers() {
   const { data: products = [] } = useProducts();
   const { data: limits = [] } = useCreditLimits();
   const setLimit = useSetCreditLimit();
+  const setNotes = useSetCustomerNotes();
   const [search, setSearch] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesSaved, setNotesSaved] = useState(true);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [limitInput, setLimitInput] = useState(0);
 
@@ -148,6 +146,37 @@ export default function Customers() {
       navigate('/customers', { replace: true });
     }
   }, [params.slug, rows.length, selectedRow, navigate]);
+
+  // Seed the notes draft when the selected customer changes
+  const limitForCurrent = useMemo(() => {
+    if (!selectedRow) return null;
+    const k = selectedRow.name.trim().toLowerCase();
+    return limits.find(l => l.name.trim().toLowerCase() === k) ?? null;
+  }, [selectedRow, limits]);
+
+  useEffect(() => {
+    setNotesDraft(limitForCurrent?.notes ?? '');
+    setNotesSaved(true);
+  }, [limitForCurrent?.id, limitForCurrent?.notes]);
+
+  function saveNotes() {
+    if (!selectedRow) return;
+    if (notesDraft === (limitForCurrent?.notes ?? '')) {
+      setNotesSaved(true);
+      return;
+    }
+    setNotes.mutate(
+      {
+        name: selectedRow.name,
+        phone: selectedRow.phone,
+        notes: notesDraft,
+      },
+      {
+        onSuccess: () => { setNotesSaved(true); toast(t('toast.saved')); },
+        onError: () => toast(t('toast.error'), 'error'),
+      },
+    );
+  }
 
   function sendWhatsApp() {
     if (!detail?.customer) return;
@@ -342,6 +371,35 @@ export default function Customers() {
                       })()}
                     </div>
 
+                    {/* Notes — free-form, auto-saves on blur */}
+                    <div className="card p-5">
+                      <div className="flex items-baseline justify-between mb-2">
+                        <div className="text-xs font-medium uppercase tracking-wider text-fg-muted">
+                          {t('cust.notesTitle')}
+                        </div>
+                        <span className={cn(
+                          'text-[10px] tnum',
+                          notesSaved ? 'text-fg-subtle' : 'text-amber-600 dark:text-amber-400',
+                        )}>
+                          {setNotes.isPending
+                            ? t('cust.notesSaving')
+                            : notesSaved
+                              ? t('cust.notesSaved')
+                              : t('cust.notesUnsaved')}
+                        </span>
+                      </div>
+                      <textarea
+                        className="input min-h-[88px] resize-y"
+                        placeholder={t('cust.notesPlaceholder')}
+                        value={notesDraft}
+                        onChange={e => {
+                          setNotesDraft(e.target.value);
+                          setNotesSaved(false);
+                        }}
+                        onBlur={saveNotes}
+                      />
+                    </div>
+
                     <div className="card overflow-hidden">
                       <div className="px-4 py-3 border-b border-border text-xs font-medium uppercase tracking-wider text-fg-muted">
                         {t('nav.sales')}  ·  {detail.sales.length}
@@ -451,10 +509,6 @@ export default function Customers() {
   );
 }
 
-// Exported helper so other pages can link to a customer profile
-export function customerProfilePath(name: string): string {
-  return `/customers/${customerSlug(name)}`;
-}
-
-// Re-exported for the cell links in Sales / Debts tables
-export { Link as RouterLink };
+// Backward-compatible re-export: anyone still importing from this module
+// gets routed to the dedicated util.
+export const customerProfilePath = _customerProfilePath;

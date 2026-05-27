@@ -733,12 +733,12 @@ export class SupabaseRepository implements Repository {
   }
 
   // ============== action logs ==============
-  async listActionLogs(): Promise<ActionLog[]> {
+  async listActionLogs(limit = 200): Promise<ActionLog[]> {
     const { data, error } = await supabase
       .from('action_logs')
       .select('*')
       .order('date', { ascending: false })
-      .limit(200);
+      .limit(limit);
     const rows = throwIfError(data, error, 'listActionLogs') as ActionLogRow[];
     // Bulk-fetch names for the distinct user_ids present in the page.
     const userIds = Array.from(new Set(rows.map(r => r.user_id).filter((x): x is string => !!x)));

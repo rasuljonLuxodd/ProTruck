@@ -97,7 +97,7 @@ export interface Repository {
   payWorker(workerId: string, payment: Omit<WorkerPayment, 'id' | 'workerId'>): Promise<Worker>;
 
   // action log
-  listActionLogs(): Promise<ActionLog[]>;
+  listActionLogs(limit?: number): Promise<ActionLog[]>;
   addActionLog(input: Omit<ActionLog, 'id'>): Promise<ActionLog>;
 
   // users

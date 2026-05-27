@@ -21,7 +21,7 @@ import { useFormatDate } from '@/lib/useFormatters';
 import { actualCashIncome, inMonth, outstandingDebt, dailySeries, totalMargin } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { salePdf } from '@/lib/pdfCheque';
-import { customerProfilePath } from '@/pages/Customers';
+import { customerProfilePath } from '@/lib/customerSlug';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { CartItem, PaymentType, Sale } from '@/types';

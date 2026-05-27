@@ -4,9 +4,12 @@ import type { ActionLog } from '@/types';
 
 const KEY = ['actionLogs'] as const;
 
-export function useActionLogs() {
+export function useActionLogs(limit?: number) {
   const repo = useRepository();
-  return useQuery({ queryKey: KEY, queryFn: () => repo.listActionLogs() });
+  return useQuery({
+    queryKey: limit ? (['actionLogs', limit] as const) : KEY,
+    queryFn: () => repo.listActionLogs(limit),
+  });
 }
 
 export function useAddActionLog() {

@@ -81,6 +81,8 @@ export interface CustomerCreditLimit {
   name: string;
   phone: string;
   maxDebt: number;
+  /** Free-form notes — promises, preferences, call notes. */
+  notes?: string;
 }
 
 export interface Debt {
