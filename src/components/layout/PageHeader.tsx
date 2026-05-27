@@ -25,13 +25,15 @@ export function PageHeader({ title, description, onMenu, onAdd, addLabel, rightS
           <Menu className="w-4 h-4" />
         </button>
         <div className="min-w-0">
-          {/* Small accent dot before the title — adds rhythm and signals "you're here" */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          {/* Small accent dot before the title — adds rhythm and signals
+              "you're here". Now saffron, picking up the editorial accent. */}
+          <div className="flex items-center gap-3 min-w-0">
             <span
               aria-hidden
-              className="w-1.5 h-1.5 rounded-full bg-fg shrink-0"
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: 'rgb(var(--accent))' }}
             />
-            <h1 className="text-2xl font-semibold tracking-tight truncate">{title}</h1>
+            <h1 className="display text-[28px] leading-none truncate">{title}</h1>
           </div>
           {description ? (
             <p className="mt-1.5 text-sm text-fg-muted">{description}</p>

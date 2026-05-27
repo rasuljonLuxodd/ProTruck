@@ -6,6 +6,11 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Editorial display face — used for page titles and key headings.
+        // Fraunces has tabular numerals, multiple optical sizes, and a
+        // softness axis we lean on (SOFT 50) for a touch of warmth without
+        // tipping into "magazine" territory.
+        serif: ['Fraunces', 'Georgia', 'Cambria', 'serif'],
         mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {

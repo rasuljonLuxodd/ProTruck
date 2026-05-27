@@ -77,7 +77,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col bg-bg">
       <header className="flex items-center justify-between px-6 py-5">
-        <div className="font-semibold tracking-tight">ProTrack</div>
+        <div className="display text-[20px] leading-none">ProTrack</div>
         <div className="flex items-center gap-2">
           <div className="flex border border-border rounded-lg overflow-hidden">
             {LANGS.map(opt => (
@@ -105,7 +105,7 @@ export default function Login() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-[400px]">
           <div className="mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="display text-[28px] leading-none">
               {isMfa ? t('set.mfaTitle') : t('auth.signInTitle')}
             </h1>
             <p className="mt-1.5 text-sm text-fg-muted">

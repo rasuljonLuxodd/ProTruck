@@ -89,9 +89,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* logo + collapse toggle */}
         <div className={cn('px-5 py-5 border-b border-border flex items-center', collapsed ? 'justify-center px-2' : 'justify-between')}>
           {!collapsed ? (
-            <div className="font-semibold tracking-tight text-[15px]">ProTrack</div>
+            <div className="display text-[18px] leading-none">ProTrack</div>
           ) : (
-            <div className="w-7 h-7 rounded-md bg-fg text-bg flex items-center justify-center text-[11px] font-bold">P</div>
+            <div
+              className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold"
+              style={{ background: 'rgb(var(--accent))', color: 'rgb(var(--accent-fg))' }}
+            >P</div>
           )}
           <button
             onClick={() => setCollapsed(c => !c)}
@@ -123,11 +126,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             >
               {({ isActive }) => (
                 <>
-                  {/* Active accent bar — small but clearly marks the current page */}
+                  {/* Active accent bar — saffron, picks up the editorial brand color */}
                   {isActive && !collapsed && (
                     <span
                       aria-hidden
-                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-fg"
+                      className="absolute -left-2.5 top-1.5 bottom-1.5 w-0.5 rounded-r-full"
+                      style={{ background: 'rgb(var(--accent))' }}
                     />
                   )}
                   <item.icon
