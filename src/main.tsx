@@ -8,7 +8,15 @@ import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/auth/AuthProvider';
+import { registerSW } from 'virtual:pwa-register';
 import './index.css';
+
+// Register the service worker for offline support. `autoUpdate` means
+// new versions get swapped in on the next page load — no "refresh to
+// update" prompt to interrupt the user.
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
