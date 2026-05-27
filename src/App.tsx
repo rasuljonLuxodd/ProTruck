@@ -31,6 +31,7 @@ const Workers    = lazy(() => import('@/pages/Workers'));
 const Calendar   = lazy(() => import('@/pages/Calendar'));
 const Reports    = lazy(() => import('@/pages/Reports'));
 const Customers  = lazy(() => import('@/pages/Customers'));
+const Purchases  = lazy(() => import('@/pages/Purchases'));
 const Settings   = lazy(() => import('@/pages/Settings'));
 
 /**
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/expenses"   element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
         <Route path="/customers"       element={<ProtectedRoute><Customers /></ProtectedRoute>} />
         <Route path="/customers/:slug" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+        <Route path="/purchases"       element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
 
         {/* super_admin only */}
         <Route path="/workers"  element={<ProtectedRoute requireRole="super_admin"><Workers /></ProtectedRoute>} />

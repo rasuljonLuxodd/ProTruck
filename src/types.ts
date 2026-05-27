@@ -103,6 +103,33 @@ export interface AccountBalance {
   balance: number;
 }
 
+export type PurchaseOrderStatus = 'draft' | 'ordered' | 'partial' | 'received' | 'cancelled';
+
+export interface PurchaseOrder {
+  id: string;
+  number: string;
+  supplierId?: string;
+  supplierName?: string;   // denormalized for display
+  status: PurchaseOrderStatus;
+  expectedAt?: string;
+  note?: string;
+  createdAt: string;
+  orderedAt?: string;
+  receivedAt?: string;
+  items: PurchaseOrderItem[];
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  poId: string;
+  productId: string;
+  productName?: string;   // denormalized for display
+  orderedQty: number;
+  receivedQty: number;
+  unitCost: number;
+  note?: string;
+}
+
 export interface AccountTransfer {
   id: string;
   fromAccountId: string;
