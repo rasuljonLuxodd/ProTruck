@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Trash2, Search, CreditCard, Download } from 'lucide-react';
+import { Trash2, Search, CreditCard, Download, MessageCircle } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -14,12 +14,17 @@ import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, daysBetween, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
+import { buildReminderText, waMeUrl, dueStatus } from '@/lib/reminder';
+import { useLanguage } from '@/i18n/LanguageProvider';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { DatePicker } from '@/components/ui/DatePicker';
 import type { Debt } from '@/types';
 
 export default function Debts() {
   const t = useT();
+  const { lang } = useLanguage();
   const fmtDate = useFormatDate();
   const { toast } = useToast();
   const { data: debts = [] } = useDebts();
@@ -131,6 +136,21 @@ export default function Debts() {
     deleteDebt.mutate(confirmDel, { onSuccess: () => { toast(t('toast.deleted')); setConfirmDel(null); } });
   }
 
+  function sendReminder(d: Debt) {
+    const text = buildReminderText({
+      customerName: d.customerName,
+      amount: d.amount,
+      dueDate: d.dueDate,
+      lang,
+    });
+    const url = waMeUrl(d.customerPhone, text);
+    if (!url) {
+      toast(t('debts.noPhone'), 'error');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   return (
     <Layout>
       {({ openMenu }) => (
@@ -206,9 +226,22 @@ export default function Debts() {
                   {filtered.length === 0 ? (
                     <tr><td colSpan={6} className="text-center text-fg-subtle py-10">{t('common.empty')}</td></tr>
                   ) : (
-                    filtered.map(d => (
+                    filtered.map(d => {
+                      const status = dueStatus(d.dueDate);
+                      return (
                       <tr key={d.id}>
-                        <td className="font-medium">{d.customerName}</td>
+                        <td>
+                          <div className="font-medium">{d.customerName}</div>
+                          {status !== 'noDue' && status !== 'upcoming' && (
+                            <Badge
+                              tone={status === 'overdue' ? 'negative' : status === 'dueToday' ? 'warning' : 'warning'}
+                              className="mt-0.5"
+                            >
+                              {t(`debts.status.${status}` as const)}
+                              {d.dueDate ? ` · ${fmtDate(d.dueDate)}` : ''}
+                            </Badge>
+                          )}
+                        </td>
                         <td className="font-mono text-xs text-fg-muted">{d.customerPhone}</td>
                         <td className="max-w-[240px] truncate">{d.product}</td>
                         <td className="text-right text-negative font-semibold">{formatUZS(d.amount)}</td>
@@ -217,6 +250,18 @@ export default function Debts() {
                           <div className="text-[10px] mt-0.5 text-fg-subtle">{daysBetween(d.date)} {t('debts.daysPassed')}</div>
                         </td>
                         <td className="text-right space-x-1 whitespace-nowrap">
+                          <button
+                            className={cn(
+                              'btn-ghost !py-1.5',
+                              status === 'overdue' && 'text-negative',
+                              status === 'dueToday' && 'text-amber-600 dark:text-amber-400',
+                            )}
+                            onClick={() => sendReminder(d)}
+                            title={t('debts.sendReminder')}
+                            disabled={!d.customerPhone}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             className="btn-secondary !py-1.5 !text-xs"
                             onClick={() => { setPartial(d); setPartialAmount(0); }}
@@ -234,7 +279,8 @@ export default function Debts() {
                           </button>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
