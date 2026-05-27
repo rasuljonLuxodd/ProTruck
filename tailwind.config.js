@@ -48,11 +48,24 @@ export default {
           '0%': { opacity: '0', transform: 'scale(0.98)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
+        // Page-level transition — slightly slower than UI primitives so
+        // each route change reads as a "scene change" without dragging.
+        pageEnter: {
+          '0%':   { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        // Shimmer wave for skeleton loading bars
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         slideIn: 'slideIn 0.18s ease-out',
         fadeIn: 'fadeIn 0.15s ease-out',
         scaleIn: 'scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+        pageEnter: 'pageEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+        shimmer: 'shimmer 1.6s linear infinite',
       },
     },
   },

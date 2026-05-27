@@ -1,15 +1,47 @@
 import { cn } from '@/lib/utils';
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('bg-surface-2 animate-pulse rounded', className)} />;
+interface SkeletonProps {
+  className?: string;
+  /** "block" (rectangle) or "circle" (rounded-full). Default block. */
+  shape?: 'block' | 'circle';
+}
+
+/**
+ * Loading placeholder with a slow shimmer wave. The wave is a moving
+ * highlight band inside a subtle base color, achieved with a 200%-wide
+ * gradient that animates its background-position. This reads as more
+ * "alive" than a static gray bar without being distracting.
+ */
+export function Skeleton({ className, shape = 'block' }: SkeletonProps) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        'animate-shimmer',
+        shape === 'circle' ? 'rounded-full' : 'rounded-md',
+        className,
+      )}
+      style={{
+        backgroundImage:
+          'linear-gradient(90deg, rgb(var(--surface-2)) 0%, rgb(var(--border)) 50%, rgb(var(--surface-2)) 100%)',
+        backgroundSize: '200% 100%',
+      }}
+    />
+  );
 }
 
 export function StatCardSkeleton() {
   return (
     <div className="card p-5">
-      <Skeleton className="h-3 w-24 mb-4" />
+      <div className="flex items-start justify-between mb-3">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-8 w-8" />
+      </div>
       <Skeleton className="h-8 w-40 mb-3" />
-      <Skeleton className="h-3 w-32" />
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-6 w-16" />
+      </div>
     </div>
   );
 }

@@ -23,7 +23,7 @@ import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from
 import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { expensePdf } from '@/lib/pdfCheque';
-import { inMonth } from '@/lib/calc';
+import { inMonth, dailySeries } from '@/lib/calc';
 import type { Expense, ExpenseCategory, PaymentType, RecurringExpense } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 
@@ -78,6 +78,12 @@ export default function Expenses() {
     if (expenses.length === 0) return 0;
     return Math.max(...expenses.map(e => e.amount));
   }, [expenses]);
+
+  // 14-day sparkline of daily expenses
+  const dailyExpenses = useMemo(
+    () => dailySeries(expenses, e => e.date, e => e.amount),
+    [expenses],
+  );
 
   const filtered = useMemo(() => {
     return expenses
@@ -181,7 +187,13 @@ export default function Expenses() {
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <StatCard title={t('exp.monthly')} value={formatUZS(thisMonth)} icon={Wallet} tone="negative" />
+            <StatCard
+              title={t('exp.monthly')}
+              value={formatUZS(thisMonth)}
+              icon={Wallet}
+              tone="negative"
+              series={dailyExpenses}
+            />
             <StatCard title={t('exp.biggest')} value={formatUZS(biggest)} />
             <StatCard
               title={t('exp.vsPrev')}

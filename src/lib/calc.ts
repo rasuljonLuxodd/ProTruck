@@ -111,6 +111,33 @@ export function last7DaysSeries(sales: Sale[], production: ProductionLog[]) {
   return out;
 }
 
+/**
+ * Generic daily-series builder used by the StatCard sparklines.
+ * Bucketizes items by day (oldest → newest) for the last `days` days
+ * including today. Items without a parseable date are skipped.
+ */
+export function dailySeries<T>(
+  items: T[],
+  getDate: (item: T) => string,
+  getValue: (item: T) => number,
+  days = 14,
+  now: Date = new Date(),
+): number[] {
+  const buckets = new Array(days).fill(0);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const startMs = today.getTime() - (days - 1) * 86_400_000;
+  for (const item of items) {
+    const d = new Date(getDate(item));
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    const idx = Math.floor((d.getTime() - startMs) / 86_400_000);
+    if (idx < 0 || idx >= days) continue;
+    buckets[idx] += getValue(item) || 0;
+  }
+  return buckets;
+}
+
 export function top3Products(sales: Sale[]): Array<{ name: string; quantity: number }> {
   const totals = new Map<string, number>();
   for (const sale of sales) {

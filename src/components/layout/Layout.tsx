@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { SessionBanner } from '@/components/ui/SessionBanner';
@@ -10,6 +11,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [open, setOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const location = useLocation();
 
   // Global Cmd/Ctrl+K to open the palette.
   useEffect(() => {
@@ -30,10 +32,16 @@ export function Layout({ children }: LayoutProps) {
       <main className="flex-1 min-w-0">
         <SessionBanner />
         <div className="mx-auto max-w-[1280px] px-5 md:px-8 py-6 md:py-8">
-          {children({
-            openMenu: () => setOpen(true),
-            openPalette: () => setPaletteOpen(true),
-          })}
+          {/* Page-content key on pathname so React re-mounts on route change,
+              re-triggering the fadeIn animation. Layout chrome (sidebar,
+              session banner, palette) stays mounted across navigation so
+              there's no flicker. */}
+          <div key={location.pathname} className="animate-pageEnter">
+            {children({
+              openMenu: () => setOpen(true),
+              openPalette: () => setPaletteOpen(true),
+            })}
+          </div>
         </div>
       </main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

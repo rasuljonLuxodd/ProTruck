@@ -6,6 +6,7 @@ import { Package, ShoppingCart, Users as UsersIcon, Receipt } from 'lucide-react
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ChartTooltip } from '@/components/ui/ChartTooltip';
 import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/OnboardingChecklist';
 import { WelcomeHero } from '@/components/dashboard/WelcomeHero';
 import { QuickActions } from '@/components/dashboard/QuickActions';
@@ -173,14 +174,7 @@ export default function Dashboard() {
                       />
                       <Tooltip
                         cursor={{ stroke: 'rgb(var(--border-strong))', strokeDasharray: '2 4' }}
-                        contentStyle={{
-                          background: 'rgb(var(--bg))',
-                          border: '1px solid rgb(var(--border))',
-                          borderRadius: 8,
-                          fontSize: 12,
-                          padding: '8px 10px',
-                        }}
-                        labelStyle={{ color: 'rgb(var(--fg-muted))', fontSize: 11 }}
+                        content={<ChartTooltip asMoney />}
                       />
                       {/* gradient area for sales */}
                       <Area

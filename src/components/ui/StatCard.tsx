@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Sparkline } from '@/components/dashboard/Sparkline';
 import { cn } from '@/lib/utils';
 
 type Tone = 'default' | 'positive' | 'negative';
@@ -11,6 +12,12 @@ interface StatCardProps {
   change?: number;
   changeLabel?: string;
   tone?: Tone;
+  /**
+   * Optional series for a tiny inline sparkline rendered under the value.
+   * Pass 7+ data points for best visual rhythm; falls back to a dashed line
+   * if fewer than 2 points are provided.
+   */
+  series?: number[];
 }
 
 const valueClass: Record<Tone, string> = {
@@ -31,9 +38,18 @@ const iconBg: Record<Tone, string> = {
   negative: 'bg-negative/10',
 };
 
-export function StatCard({ title, value, icon: Icon, change, changeLabel, tone = 'default' }: StatCardProps) {
+const sparkColor: Record<Tone, string> = {
+  default:  'text-fg-muted',
+  positive: 'text-positive',
+  negative: 'text-negative',
+};
+
+export function StatCard({
+  title, value, icon: Icon, change, changeLabel, tone = 'default', series,
+}: StatCardProps) {
   const hasChange = typeof change === 'number' && isFinite(change);
   const up = (change ?? 0) >= 0;
+  const hasSpark = Array.isArray(series) && series.length > 0;
 
   return (
     <div className="card card-hover p-5 group relative overflow-hidden">
@@ -61,20 +77,37 @@ export function StatCard({ title, value, icon: Icon, change, changeLabel, tone =
         ) : null}
       </div>
       <div className={cn('stat-value relative', valueClass[tone])}>{value}</div>
-      {hasChange ? (
-        <div className="mt-2.5 flex items-center gap-1 text-xs relative">
-          <div
-            className={cn(
-              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-medium tnum',
-              up ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10',
-            )}
-          >
-            {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-            {up ? '+' : ''}{change!.toFixed(1)}%
+
+      {/* Sparkline row + change badge share the same line; if there's no
+          sparkline the change badge takes its old position alone. */}
+      <div className="mt-2.5 relative flex items-end justify-between gap-3 min-h-[20px]">
+        {hasChange ? (
+          <div className="flex items-center gap-1 text-xs">
+            <div
+              className={cn(
+                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-medium tnum',
+                up ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10',
+              )}
+            >
+              {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+              {up ? '+' : ''}{change!.toFixed(1)}%
+            </div>
+            {changeLabel ? <span className="text-fg-subtle">{changeLabel}</span> : null}
           </div>
-          {changeLabel ? <span className="text-fg-subtle ml-1">{changeLabel}</span> : null}
-        </div>
-      ) : null}
+        ) : (
+          <div /> /* keep the flex slot so spark sits right-aligned even without change */
+        )}
+
+        {hasSpark && (
+          <Sparkline
+            values={series}
+            size="sm"
+            width={72}
+            filled
+            className={cn('-mb-0.5 shrink-0', sparkColor[tone])}
+          />
+        )}
+      </div>
     </div>
   );
 }

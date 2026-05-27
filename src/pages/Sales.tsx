@@ -18,7 +18,7 @@ import { useDebts } from '@/hooks/useDebts';
 import { useCreditLimits } from '@/hooks/useCreditLimits';
 import { formatUZS, formatDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
-import { actualCashIncome, inMonth, outstandingDebt } from '@/lib/calc';
+import { actualCashIncome, inMonth, outstandingDebt, dailySeries } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { salePdf } from '@/lib/pdfCheque';
 import { cn } from '@/lib/utils';
@@ -73,6 +73,24 @@ export default function Sales() {
   // decremented as payments come in). Summing s.debtPart from sales would
   // double-count anything already paid off.
   const customerDebt = useMemo(() => outstandingDebt(debts), [debts]);
+
+  // 14-day sparkline series for the stat cards
+  const dailyRevenue = useMemo(
+    () => dailySeries(sales, s => s.date, s => s.total),
+    [sales],
+  );
+  const dailyCash = useMemo(
+    () => dailySeries(
+      sales,
+      s => s.date,
+      s => {
+        if (s.paymentType === 'naqd' || s.paymentType === 'karta') return s.total;
+        if (s.paymentType === 'aralash') return s.cashPart ?? 0;
+        return 0;
+      },
+    ),
+    [sales],
+  );
 
   const filtered = useMemo(() => {
     return sales
@@ -234,9 +252,23 @@ export default function Sales() {
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <StatCard title={t('sales.monthlyTotal')} value={formatUZS(monthTotal)} icon={ShoppingCart} />
-            <StatCard title={t('sales.actualIncome')} value={formatUZS(actualIncome)} tone="positive" />
-            <StatCard title={t('sales.customerDebt')} value={formatUZS(customerDebt)} tone="negative" />
+            <StatCard
+              title={t('sales.monthlyTotal')}
+              value={formatUZS(monthTotal)}
+              icon={ShoppingCart}
+              series={dailyRevenue}
+            />
+            <StatCard
+              title={t('sales.actualIncome')}
+              value={formatUZS(actualIncome)}
+              tone="positive"
+              series={dailyCash}
+            />
+            <StatCard
+              title={t('sales.customerDebt')}
+              value={formatUZS(customerDebt)}
+              tone="negative"
+            />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
