@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   actualCashIncome, expenseTotal, netProfit, workerPayoutDue,
   productionThisMonth, top3Products, monthKey, isSameDay, inMonth,
+  daysInMonth, outstandingDebt,
 } from './calc';
-import type { Sale, Expense, Worker, ProductionLog } from '@/types';
+import type { Sale, Expense, Worker, ProductionLog, Debt } from '@/types';
 
 function sale(part: Partial<Sale>): Sale {
   return {
@@ -53,23 +54,71 @@ describe('expenseTotal + netProfit', () => {
   });
 });
 
+describe('daysInMonth', () => {
+  it('returns 31 for Jan / 28 for Feb (non-leap) / 29 for Feb (leap)', () => {
+    expect(daysInMonth(2026, 0)).toBe(31);
+    expect(daysInMonth(2026, 1)).toBe(28);
+    expect(daysInMonth(2024, 1)).toBe(29); // leap year
+    expect(daysInMonth(2026, 3)).toBe(30); // April
+  });
+});
+
 describe('workerPayoutDue', () => {
-  it('proportional salary + bonus - penalty - advance', () => {
+  it('proportional salary + bonus - penalty - advance (pinned to a 30-day month)', () => {
     const w: Worker = {
-      id: 'w', name: 'x', monthlySalary: 3000000,
-      workDays: 15, bonus: 100000, penalty: 50000, advance: 200000,
+      id: 'w', name: 'x', monthlySalary: 3_000_000,
+      workDays: 15, bonus: 100_000, penalty: 50_000, advance: 200_000,
       paymentHistory: [],
     };
-    // 3,000,000 / 30 * 15 = 1,500,000; + 100,000 - 50,000 - 200,000 = 1,350,000
-    expect(workerPayoutDue(w)).toBe(1_350_000);
+    // April has 30 days. 3,000,000 / 30 * 15 = 1,500,000; + 100k − 50k − 200k = 1,350,000
+    const april = new Date(2026, 3, 15);
+    expect(workerPayoutDue(w, april)).toBe(1_350_000);
   });
-  it('never returns negative', () => {
+
+  it('uses actual days for February (28 in 2026)', () => {
+    const w: Worker = {
+      id: 'w', name: 'x', monthlySalary: 2_800_000,
+      workDays: 14, bonus: 0, penalty: 0, advance: 0,
+      paymentHistory: [],
+    };
+    // Feb 2026 = 28 days. 2,800,000 / 28 * 14 = 1,400,000
+    const feb = new Date(2026, 1, 15);
+    expect(workerPayoutDue(w, feb)).toBe(1_400_000);
+  });
+
+  it('returns signed value when overpaid (advance > earnings)', () => {
     const w: Worker = {
       id: 'w', name: 'x', monthlySalary: 100,
-      workDays: 1, bonus: 0, penalty: 9999, advance: 0,
+      workDays: 1, bonus: 0, penalty: 9_999, advance: 0,
       paymentHistory: [],
     };
-    expect(workerPayoutDue(w)).toBe(0);
+    // Negative result surfaces that the worker is in the red — no silent clamping.
+    const may = new Date(2026, 4, 15); // 31 days
+    const expected = 100 / 31 - 9_999;
+    expect(workerPayoutDue(w, may)).toBeCloseTo(expected);
+  });
+
+  it('clamps workDays > daysInMonth so Feb does not get a 31-day bonus', () => {
+    const w: Worker = {
+      id: 'w', name: 'x', monthlySalary: 2_800_000,
+      workDays: 31, bonus: 0, penalty: 0, advance: 0,
+      paymentHistory: [],
+    };
+    const feb = new Date(2026, 1, 15);
+    // Should treat as 28/28, not (2.8M/28)*31 which would overpay.
+    expect(workerPayoutDue(w, feb)).toBe(2_800_000);
+  });
+});
+
+describe('outstandingDebt', () => {
+  it('sums remaining balances from debts table', () => {
+    const debts: Debt[] = [
+      { id: '1', customerName: 'A', customerPhone: '', product: 'x',
+        amount: 5_000, originalAmount: 10_000, date: '', payments: [] },
+      { id: '2', customerName: 'B', customerPhone: '', product: 'y',
+        amount: 3_000, originalAmount: 3_000, date: '', payments: [] },
+    ];
+    expect(outstandingDebt(debts)).toBe(8_000);
   });
 });
 

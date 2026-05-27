@@ -104,6 +104,20 @@
     @apply bg-surface border border-border rounded-xl;
   }
 
+  /* Cards that respond to hover — used for interactive cards (stat cards,
+     worker cards, etc.). Keep the lift small; this is studio polish, not a
+     loyalty-app explosion. */
+  .card-hover {
+    @apply transition-all duration-200 hover:border-border-strong
+           hover:-translate-y-px hover:shadow-sm;
+  }
+
+  /* Soft icon chip — used to wrap icons inside StatCard / list rows. */
+  .icon-chip {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-lg
+           bg-surface-2 text-fg-muted border border-border;
+  }
+
   /* tabular numerals */
   .tnum {
     font-variant-numeric: tabular-nums;
@@ -167,8 +181,11 @@
   .data-table tbody tr:last-child td {
     @apply border-b-0;
   }
+  .data-table tbody tr {
+    transition: background 0.12s ease;
+  }
   .data-table tbody tr:hover td {
-    background: rgb(var(--surface) / 1);
+    background: rgb(var(--surface-2) / 1);
   }
 
   /* big stat number */
@@ -188,6 +205,15 @@
     background-image:
       radial-gradient(circle at 0% 0%, rgb(var(--fg) / 0.05), transparent 45%),
       radial-gradient(circle at 100% 100%, rgb(var(--fg) / 0.03), transparent 55%);
+  }
+
+  /* Subtle gradient ring used as an accent on hero stat cards / hero
+     elements — extremely soft so it doesn't compete with the content. */
+  .gradient-ring {
+    background:
+      linear-gradient(180deg, rgb(var(--bg)) 0%, rgb(var(--bg)) 100%) padding-box,
+      linear-gradient(135deg, rgb(var(--fg) / 0.18), transparent 60%) border-box;
+    border: 1px solid transparent;
   }
 
   /* "Live" pulse — green dot with a soft expanding ring. */
@@ -220,4 +246,20 @@
   .stagger-4 { animation-delay: 160ms; animation-fill-mode: backwards; }
   .stagger-5 { animation-delay: 200ms; animation-fill-mode: backwards; }
   .stagger-6 { animation-delay: 240ms; animation-fill-mode: backwards; }
+
+  /* Touch-friendly tap target — mobile-first, but invisible on desktop. */
+  .tap-44 {
+    min-height: 44px;
+  }
+
+  /* Used by the page-header underline accent. */
+  .accent-underline::after {
+    content: '';
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: rgb(var(--fg));
+    border-radius: 2px;
+    margin-top: 6px;
+  }
 }

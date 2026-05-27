@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Trash2, Edit, Wallet, Download } from 'lucide-react';
+import { Trash2, Edit, Wallet, Download, FileDown } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -22,6 +22,7 @@ import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate, percentChange, toInputDate, fromInputDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
+import { expensePdf } from '@/lib/pdfCheque';
 import { inMonth } from '@/lib/calc';
 import type { Expense, ExpenseCategory, PaymentType, RecurringExpense } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
@@ -159,6 +160,7 @@ export default function Expenses() {
               filtered.length > 0 && (
                 <button
                   className="btn-secondary"
+                  title={t('common.export')}
                   onClick={() => {
                     const csv = buildCsv(filtered, [
                       { key: 'date',        header: t('common.date'),        render: r => formatDate(r.date) },
@@ -172,7 +174,7 @@ export default function Expenses() {
                   }}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {t('common.export')}
+                  <span className="hidden sm:inline">{t('common.export')}</span>
                 </button>
               )
             }
@@ -244,6 +246,13 @@ export default function Expenses() {
                         <td><Badge>{t(`payment.${e.paymentType}` as TranslationKey)}</Badge></td>
                         <td className="font-mono text-xs text-fg-muted">{fmtDate(e.date)}</td>
                         <td className="text-right space-x-1 whitespace-nowrap">
+                          <button
+                            className="btn-ghost !py-1.5"
+                            onClick={() => expensePdf(e)}
+                            title={t('common.downloadPdf')}
+                          >
+                            <FileDown className="w-3.5 h-3.5" />
+                          </button>
                           <button className="btn-ghost !py-1.5" onClick={() => startEdit(e)}>
                             <Edit className="w-3.5 h-3.5" />
                           </button>

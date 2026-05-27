@@ -1,7 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, User as UserIcon } from 'lucide-react';
-import { supabase } from '@/data/supabaseClient';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/auth/AuthProvider';
 import { useT, useLanguage } from '@/i18n/LanguageProvider';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -14,21 +13,21 @@ const LANGS: Array<{ code: Language; label: string }> = [
   { code: 'ru', label: 'RU' },
 ];
 
-type Mode = 'signin' | 'signup';
-
+/**
+ * Login page. Sign-up is intentionally NOT exposed here — the super admin
+ * creates user accounts from Settings → Users. Self-registration would let
+ * anyone discover the URL and request access, which is not what this app
+ * is for (a single business gives credentials to its own staff).
+ */
 export default function Login() {
   const t = useT();
   const { lang, setLang } = useLanguage();
   const { theme, toggle } = useTheme();
-  const { signIn, verifyMfa, currentUser, refresh } = useAuth();
+  const { signIn, verifyMfa, currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
-  const [mode, setMode] = useState<Mode>('signin');
-  const [hasAnyUser, setHasAnyUser] = useState<boolean | null>(null);
-
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,23 +37,6 @@ export default function Login() {
   // MFA state — if signIn returns mfaRequired, we ask for the 6-digit code.
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState('');
-
-  // First-time? Detect whether any profile exists. If not, force signup mode.
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      const { count } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true });
-      if (!active) return;
-      const any = (count ?? 0) > 0;
-      setHasAnyUser(any);
-      if (!any) setMode('signup');
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   if (currentUser) return <Navigate to={from} replace />;
 
@@ -89,36 +71,8 @@ export default function Login() {
     }
   }
 
-  async function handleSignUp(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    const { data, error: err } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { data: { name: name.trim() } },
-    });
-    setBusy(false);
-    if (err) {
-      const msg = err.message.toLowerCase();
-      if (msg.includes('user already registered')) setError(t('auth.duplicate'));
-      else if (msg.includes('password')) setError(t('auth.weakPassword'));
-      else setError(err.message);
-      return;
-    }
-    if (data.session) {
-      await refresh();
-      navigate(from, { replace: true });
-    } else {
-      // Email confirmation flow — tell user to check inbox.
-      setMode('signin');
-      setError(null);
-    }
-  }
-
-  const isSignUp = mode === 'signup';
   const isMfa = !!mfaFactorId;
-  const submit = isMfa ? handleMfaVerify : isSignUp ? handleSignUp : handleSignIn;
+  const submit = isMfa ? handleMfaVerify : handleSignIn;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -152,14 +106,10 @@ export default function Login() {
         <div className="w-full max-w-[400px]">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {isMfa ? t('set.mfaTitle')
-                : isSignUp ? t('auth.signUpTitle')
-                : t('auth.signInTitle')}
+              {isMfa ? t('set.mfaTitle') : t('auth.signInTitle')}
             </h1>
             <p className="mt-1.5 text-sm text-fg-muted">
-              {isMfa ? t('set.mfaScan')
-                : isSignUp ? t('auth.signUpSubtitle')
-                : t('auth.signInSubtitle')}
+              {isMfa ? t('set.mfaScan') : t('auth.signInSubtitle')}
             </p>
           </div>
 
@@ -179,67 +129,47 @@ export default function Login() {
                   placeholder="123456"
                 />
               </div>
-            ) : null}
-
-            {!isMfa && isSignUp && (
-              <div>
-                <label className="label">{t('auth.name')}</label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
-                  <input
-                    type="text"
-                    className="input pl-9"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="Admin"
-                    required
-                  />
+            ) : (
+              <>
+                <div>
+                  <label className="label">{t('auth.email')}</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
+                    <input
+                      type="email"
+                      className="input pl-9"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoFocus
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {!isMfa && (
-            <div>
-              <label className="label">{t('auth.email')}</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
-                <input
-                  type="email"
-                  className="input pl-9"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoFocus
-                  required
-                />
-              </div>
-            </div>
-            )}
-
-            {!isMfa && (
-            <div>
-              <label className="label">{t('auth.password')}</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="input pl-9 pr-9"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={isSignUp ? 6 : undefined}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg transition"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+                <div>
+                  <label className="label">{t('auth.password')}</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="input pl-9 pr-9"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg transition"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             {error && (
@@ -249,10 +179,10 @@ export default function Login() {
             )}
 
             <button type="submit" className="btn-primary w-full" disabled={busy || (isMfa && mfaCode.length !== 6)}>
-              {busy ? '…' : isMfa ? t('set.mfaVerify') : isSignUp ? t('auth.signUp') : t('auth.signIn')}
+              {busy ? '…' : isMfa ? t('set.mfaVerify') : t('auth.signIn')}
             </button>
 
-            {!isMfa && !isSignUp && hasAnyUser && (
+            {!isMfa && (
               <div className="text-center">
                 <Link
                   to="/forgot-password"
@@ -264,13 +194,9 @@ export default function Login() {
             )}
           </form>
 
-          {/* Once any user exists, signup is closed — only super admin can
-              create users via Settings → Users. */}
-          {hasAnyUser === false && (
-            <div className="mt-8 pt-6 border-t border-border text-xs text-fg-muted text-center">
-              {t('auth.signUpSubtitle')}
-            </div>
-          )}
+          <div className="mt-8 pt-6 border-t border-border text-xs text-fg-subtle text-center leading-relaxed">
+            {t('auth.invitedOnly')}
+          </div>
         </div>
       </main>
 

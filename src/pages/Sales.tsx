@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Search, ShoppingCart, Printer, Download, Undo2 } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingCart, FileDown, Download, Undo2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -8,7 +8,6 @@ import { Field } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PrintableSlip } from '@/components/ui/PrintableSlip';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Select } from '@/components/ui/Select';
 import { useT } from '@/i18n/LanguageProvider';
@@ -19,8 +18,9 @@ import { useDebts } from '@/hooks/useDebts';
 import { useCreditLimits } from '@/hooks/useCreditLimits';
 import { formatUZS, formatDate } from '@/lib/format';
 import { useFormatDate } from '@/lib/useFormatters';
-import { actualCashIncome, inMonth } from '@/lib/calc';
+import { actualCashIncome, inMonth, outstandingDebt } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
+import { salePdf } from '@/lib/pdfCheque';
 import { cn } from '@/lib/utils';
 import type { CartItem, PaymentType, Sale } from '@/types';
 
@@ -50,7 +50,6 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [filterPayment, setFilterPayment] = useState<PaymentType | 'all'>('all');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [receipt, setReceipt] = useState<Sale | null>(null);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -70,13 +69,10 @@ export default function Sales() {
   );
   const monthTotal = monthSales.reduce((a, s) => a + s.total, 0);
   const actualIncome = actualCashIncome(monthSales);
-  const customerDebt = useMemo(() => {
-    return sales.reduce((acc, s) => {
-      if (s.paymentType === 'qarz') return acc + s.total;
-      if (s.paymentType === 'aralash') return acc + (s.debtPart || 0);
-      return acc;
-    }, 0);
-  }, [sales]);
+  // Outstanding debt = current balance from the debts table (which gets
+  // decremented as payments come in). Summing s.debtPart from sales would
+  // double-count anything already paid off.
+  const customerDebt = useMemo(() => outstandingDebt(debts), [debts]);
 
   const filtered = useMemo(() => {
     return sales
@@ -216,6 +212,7 @@ export default function Sales() {
               filtered.length > 0 && (
                 <button
                   className="btn-secondary"
+                  title={t('common.export')}
                   onClick={() => {
                     const csv = buildCsv(filtered, [
                       { key: 'date',          header: t('common.date'),          render: r => formatDate(r.date) },
@@ -230,7 +227,7 @@ export default function Sales() {
                   }}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {t('common.export')}
+                  <span className="hidden sm:inline">{t('common.export')}</span>
                 </button>
               )
             }
@@ -308,13 +305,17 @@ export default function Sales() {
                           </td>
                           <td className="font-mono text-xs text-fg-muted">{fmtDate(s.date)}</td>
                           <td className="text-right whitespace-nowrap">
-                            <button className="btn-ghost !py-1.5" onClick={() => setReceipt(s)} title="Print receipt">
-                              <Printer className="w-3.5 h-3.5" />
+                            <button
+                              className="btn-ghost !py-1.5"
+                              onClick={() => salePdf(s)}
+                              title={t('common.downloadPdf')}
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
                             </button>
                             <button
                               className="btn-ghost !py-1.5"
                               onClick={() => setConfirmRefund(s.id)}
-                              title="Refund"
+                              title={t('sales.refund')}
                             >
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
@@ -502,80 +503,6 @@ export default function Sales() {
             }}
             onCancel={() => setConfirmRefund(null)}
           />
-
-          <PrintableSlip
-            open={!!receipt}
-            onClose={() => setReceipt(null)}
-            title="Sale receipt"
-          >
-            {receipt && (
-              <div>
-                <div className="text-center mb-4">
-                  <div className="font-sans text-base font-bold">ProTrack</div>
-                  <div className="text-xs">{formatDate(receipt.date)}</div>
-                </div>
-                <div className="border-t border-b border-dashed border-fg py-2 mb-3">
-                  <div className="flex justify-between text-xs">
-                    <span>{t('common.customer')}</span>
-                    <span className="font-semibold">{receipt.customerName}</span>
-                  </div>
-                  {receipt.customerPhone && (
-                    <div className="flex justify-between text-xs">
-                      <span>{t('common.phone')}</span>
-                      <span>{receipt.customerPhone}</span>
-                    </div>
-                  )}
-                </div>
-                <table className="w-full text-xs mb-3">
-                  <thead>
-                    <tr>
-                      <th className="text-left pb-1">{t('common.product')}</th>
-                      <th className="text-right pb-1">×</th>
-                      <th className="text-right pb-1">{t('common.total')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipt.items.map((i, idx) => (
-                      <tr key={idx}>
-                        <td className="py-0.5">{i.productName}</td>
-                        <td className="text-right">{i.quantity}</td>
-                        <td className="text-right">{formatUZS(i.quantity * i.price)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="border-t border-fg pt-2 space-y-1 text-xs">
-                  <div className="flex justify-between font-bold">
-                    <span>{t('common.total')}</span>
-                    <span>{formatUZS(receipt.total)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t('common.paymentType')}</span>
-                    <span>{t(`payment.${receipt.paymentType}` as const)}</span>
-                  </div>
-                  {receipt.paymentType === 'aralash' && (
-                    <>
-                      <div className="flex justify-between">
-                        <span>{t('sales.cashPart')}</span>
-                        <span>{formatUZS(receipt.cashPart ?? 0)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{t('sales.debtPart')}</span>
-                        <span>{formatUZS(receipt.debtPart ?? 0)}</span>
-                      </div>
-                    </>
-                  )}
-                  {receipt.paymentType === 'qarz' && (
-                    <div className="flex justify-between text-negative font-semibold">
-                      <span>{t('debts.colAmount')}</span>
-                      <span>{formatUZS(receipt.total)}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-6 text-center text-[10px]">{t('common.thanks')}</div>
-              </div>
-            )}
-          </PrintableSlip>
         </>
       )}
     </Layout>

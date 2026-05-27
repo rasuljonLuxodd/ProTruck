@@ -1,4 +1,4 @@
-import type { Expense, ProductionLog, Sale, Worker } from '@/types';
+import type { Debt, Expense, ProductionLog, Sale, Worker } from '@/types';
 
 export function monthKey(iso: string): string {
   const d = new Date(iso);
@@ -18,6 +18,19 @@ export function isSameDay(aISO: string, bISO: string): boolean {
 export function inMonth(iso: string, year: number, monthZeroBased: number): boolean {
   const d = new Date(iso);
   return d.getFullYear() === year && d.getMonth() === monthZeroBased;
+}
+
+/**
+ * Number of days in the given month (handles 28/29/30/31 correctly).
+ * Trick: day 0 of the *next* month is the last day of *this* month.
+ */
+export function daysInMonth(year: number, monthZeroBased: number): number {
+  return new Date(year, monthZeroBased + 1, 0).getDate();
+}
+
+/** Days in the current calendar month. */
+export function currentMonthDays(now: Date = new Date()): number {
+  return daysInMonth(now.getFullYear(), now.getMonth());
 }
 
 export function salesIncome(sales: Sale[]): number {
@@ -42,9 +55,35 @@ export function netProfit(sales: Sale[], expenses: Expense[]): number {
   return actualCashIncome(sales) - expenseTotal(expenses);
 }
 
-export function workerPayoutDue(w: Worker): number {
-  const base = (w.monthlySalary / 30) * w.workDays;
-  return Math.max(0, base + w.bonus - w.penalty - w.advance);
+/**
+ * Outstanding customer debt = the current balance from the `debts` table
+ * (which gets decremented as payments come in via `payPartial` / `payFull`).
+ *
+ * Do NOT derive this from sales — sales record the ORIGINAL debt at sale
+ * time and never get adjusted for subsequent payments, so summing them
+ * would double-count anything that's already been paid off.
+ */
+export function outstandingDebt(debts: Debt[]): number {
+  return debts.reduce((sum, d) => sum + (d.amount || 0), 0);
+}
+
+/**
+ * Salary due to a worker this month.
+ *
+ *   base = (monthlySalary / daysInMonth) × workDays
+ *   due  = base + bonus − penalty − advance
+ *
+ * Returns the SIGNED value — a negative result means the worker has been
+ * paid more (via advances) than they earned. UI should surface this rather
+ * than silently clamping to zero, otherwise the missing money disappears.
+ */
+export function workerPayoutDue(w: Worker, now: Date = new Date()): number {
+  const dim = currentMonthDays(now);
+  // Cap workDays at the actual days in the month — entering 31 in February
+  // would otherwise inflate base pay by ~10%.
+  const days = Math.max(0, Math.min(dim, w.workDays));
+  const base = (w.monthlySalary / dim) * days;
+  return base + w.bonus - w.penalty - w.advance;
 }
 
 export function productionThisMonth(logs: ProductionLog[], now: Date = new Date()): number {

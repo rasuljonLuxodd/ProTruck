@@ -113,16 +113,33 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               title={collapsed ? t(item.labelKey) : undefined}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2.5 rounded-lg text-sm font-medium transition',
+                  'group relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                   collapsed ? 'justify-center px-2 py-2' : 'px-2.5 py-2',
                   isActive
-                    ? 'bg-surface-2 text-fg'
+                    ? 'bg-surface-2 text-fg shadow-sm'
                     : 'text-fg-muted hover:bg-surface hover:text-fg',
                 )
               }
             >
-              <item.icon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span>{t(item.labelKey)}</span>}
+              {({ isActive }) => (
+                <>
+                  {/* Active accent bar — small but clearly marks the current page */}
+                  {isActive && !collapsed && (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-fg"
+                    />
+                  )}
+                  <item.icon
+                    className={cn(
+                      'w-4 h-4 shrink-0 transition-transform',
+                      'group-hover:scale-110',
+                      isActive && 'text-fg',
+                    )}
+                  />
+                  {!collapsed && <span>{t(item.labelKey)}</span>}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>

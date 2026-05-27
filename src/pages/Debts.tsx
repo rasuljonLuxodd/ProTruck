@@ -143,6 +143,7 @@ export default function Debts() {
               filtered.length > 0 && (
                 <button
                   className="btn-secondary"
+                  title={t('common.export')}
                   onClick={() => {
                     const csv = buildCsv(filtered, [
                       { key: 'date',           header: t('common.date'),          render: r => formatDate(r.date) },
@@ -157,7 +158,7 @@ export default function Debts() {
                   }}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {t('common.export')}
+                  <span className="hidden sm:inline">{t('common.export')}</span>
                 </button>
               )
             }
@@ -211,9 +212,9 @@ export default function Debts() {
                         <td className="font-mono text-xs text-fg-muted">{d.customerPhone}</td>
                         <td className="max-w-[240px] truncate">{d.product}</td>
                         <td className="text-right text-negative font-semibold">{formatUZS(d.amount)}</td>
-                        <td className="font-mono text-xs text-fg-muted">
+                        <td className="font-mono text-xs text-fg-muted whitespace-nowrap">
                           {fmtDate(d.date)}
-                          <div className="text-[10px] mt-0.5">{daysBetween(d.date)} {t('debts.daysPassed')}</div>
+                          <div className="text-[10px] mt-0.5 text-fg-subtle">{daysBetween(d.date)} {t('debts.daysPassed')}</div>
                         </td>
                         <td className="text-right space-x-1 whitespace-nowrap">
                           <button

@@ -19,15 +19,22 @@ export function PageHeader({ title, description, onMenu, onAdd, addLabel, rightS
       <div className="flex items-start gap-3 min-w-0">
         <button
           onClick={onMenu}
-          className="lg:hidden p-2 border border-border rounded-lg hover:bg-surface transition shrink-0"
+          className="lg:hidden inline-flex items-center justify-center w-9 h-9 border border-border rounded-lg hover:bg-surface hover:border-border-strong transition shrink-0"
           aria-label="menu"
         >
           <Menu className="w-4 h-4" />
         </button>
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight truncate">{title}</h1>
+          {/* Small accent dot before the title — adds rhythm and signals "you're here" */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              aria-hidden
+              className="w-1.5 h-1.5 rounded-full bg-fg shrink-0"
+            />
+            <h1 className="text-2xl font-semibold tracking-tight truncate">{title}</h1>
+          </div>
           {description ? (
-            <p className="mt-1 text-sm text-fg-muted">{description}</p>
+            <p className="mt-1.5 text-sm text-fg-muted">{description}</p>
           ) : null}
         </div>
       </div>
@@ -35,8 +42,8 @@ export function PageHeader({ title, description, onMenu, onAdd, addLabel, rightS
         {rightSlot}
         <NotificationBell />
         {onAdd ? (
-          <button onClick={onAdd} className="btn-primary">
-            <Plus className="w-3.5 h-3.5" />
+          <button onClick={onAdd} className="btn-primary group">
+            <Plus className="w-3.5 h-3.5 transition-transform group-hover:rotate-90" />
             <span className="hidden sm:inline">{addLabel ?? t('common.add')}</span>
           </button>
         ) : null}

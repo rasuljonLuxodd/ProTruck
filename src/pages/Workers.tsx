@@ -19,7 +19,7 @@ import {
 import { useAddExpense } from '@/hooks/useExpenses';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate } from '@/lib/format';
-import { workerPayoutDue } from '@/lib/calc';
+import { workerPayoutDue, currentMonthDays } from '@/lib/calc';
 import { cn } from '@/lib/utils';
 import type { PaymentType, Worker, WorkerPayment } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
@@ -83,9 +83,12 @@ export default function Workers() {
   }
 
   const totalAdvances = workers.reduce((a, w) => a + w.advance, 0);
+  const monthDays = currentMonthDays();
 
   function adjustDays(w: Worker, delta: number) {
-    const next = Math.min(30, Math.max(0, w.workDays + delta));
+    // Cap at actual days in the current month, not a hardcoded 30 — Feb
+    // and 31-day months were both wrong before.
+    const next = Math.min(monthDays, Math.max(0, w.workDays + delta));
     if (next === w.workDays) return;
     updWorker.mutate({ id: w.id, patch: { workDays: next } });
   }
@@ -294,7 +297,7 @@ export default function Workers() {
                     <div className="px-5 pb-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs text-fg-muted">{t('wrk.workDays')}</span>
-                        <span className="text-xs font-medium tnum">{w.workDays}/30</span>
+                        <span className="text-xs font-medium tnum">{w.workDays}/{monthDays}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -305,7 +308,10 @@ export default function Workers() {
                           <Minus className="w-3 h-3" />
                         </button>
                         <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                          <div className="h-full bg-fg" style={{ width: `${(w.workDays / 30) * 100}%` }} />
+                          <div
+                            className="h-full bg-fg transition-all"
+                            style={{ width: `${Math.min(100, (w.workDays / monthDays) * 100)}%` }}
+                          />
                         </div>
                         <button
                           className="w-7 h-7 rounded-md border border-border hover:bg-surface flex items-center justify-center transition"
@@ -342,7 +348,16 @@ export default function Workers() {
 
                     <div className="px-5 py-4 bg-surface border-t border-border flex items-center justify-between">
                       <span className="text-xs font-medium text-fg-muted">{t('wrk.payDue')}</span>
-                      <span className="text-xl font-semibold tnum">{formatUZS(due)}</span>
+                      <span
+                        className={cn(
+                          'text-xl font-semibold tnum',
+                          due < 0 && 'text-negative',
+                        )}
+                        title={due < 0 ? t('wrk.overpaidHint') : undefined}
+                      >
+                        {formatUZS(Math.abs(due))}
+                        {due < 0 ? ' −' : ''}
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-3 border-t border-border">
@@ -360,7 +375,13 @@ export default function Workers() {
                       </button>
                       <button
                         className="px-3 py-3 text-xs font-medium bg-fg text-bg hover:opacity-90 transition"
-                        onClick={() => { setPayFor(w); setPayAmount(due); setPayType('naqd'); setPayNote(''); }}
+                        onClick={() => {
+                          setPayFor(w);
+                          // Default to 0 if balance is negative (already overpaid)
+                          setPayAmount(Math.max(0, due));
+                          setPayType('naqd');
+                          setPayNote('');
+                        }}
                       >
                         {t('wrk.pay')}
                       </button>
@@ -484,11 +505,21 @@ export default function Workers() {
               </>
             }
           >
-            {payFor && (
+            {payFor && (() => {
+              const payDue = workerPayoutDue(payFor);
+              return (
               <>
                 <div className="bg-surface border border-border rounded-lg p-3">
                   <div className="text-xs text-fg-muted">{t('wrk.amountDue')}</div>
-                  <div className="text-2xl font-semibold tnum mt-0.5">{formatUZS(workerPayoutDue(payFor))}</div>
+                  <div className={cn(
+                    'text-2xl font-semibold tnum mt-0.5',
+                    payDue < 0 && 'text-negative',
+                  )}>
+                    {payDue < 0 ? '−' : ''}{formatUZS(Math.abs(payDue))}
+                  </div>
+                  {payDue < 0 && (
+                    <div className="text-xs text-negative mt-1">{t('wrk.overpaidHint')}</div>
+                  )}
                 </div>
                 <Field label={t('wrk.paymentAmount')}>
                   <MoneyInput value={payAmount} onChange={setPayAmount} placeholder="0" />
@@ -514,7 +545,8 @@ export default function Workers() {
                   <textarea className="input" value={payNote} onChange={e => setPayNote(e.target.value)} />
                 </Field>
               </>
-            )}
+              );
+            })()}
           </Modal>
 
           <Modal
@@ -536,7 +568,7 @@ export default function Workers() {
                   </div>
                   <div className="bg-surface border border-border rounded-lg p-3">
                     <div className="text-xs text-fg-muted">{t('wrk.workDays')}</div>
-                    <div className="text-sm font-semibold tnum mt-0.5">{viewFor.workDays}/30</div>
+                    <div className="text-sm font-semibold tnum mt-0.5">{viewFor.workDays}/{monthDays}</div>
                   </div>
                 </div>
                 <div>
@@ -596,7 +628,7 @@ export default function Workers() {
                   </div>
                   <div className="flex justify-between">
                     <span>{t('wrk.workDays')}</span>
-                    <span>{payslipFor.payment.snapshot.workDays} / 30</span>
+                    <span>{payslipFor.payment.snapshot.workDays} / {monthDays}</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-xs">
