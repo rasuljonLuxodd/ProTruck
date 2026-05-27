@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Trash2, Search, CreditCard, Download, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { customerProfilePath } from '@/pages/Customers';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -231,15 +233,21 @@ export default function Debts() {
                       return (
                       <tr key={d.id}>
                         <td>
-                          <div className="font-medium">{d.customerName}</div>
+                          <Link
+                            to={customerProfilePath(d.customerName)}
+                            className="font-medium hover:underline"
+                          >
+                            {d.customerName}
+                          </Link>
                           {status !== 'noDue' && status !== 'upcoming' && (
-                            <Badge
-                              tone={status === 'overdue' ? 'negative' : status === 'dueToday' ? 'warning' : 'warning'}
-                              className="mt-0.5"
-                            >
-                              {t(`debts.status.${status}` as const)}
-                              {d.dueDate ? ` · ${fmtDate(d.dueDate)}` : ''}
-                            </Badge>
+                            <div className="mt-1">
+                              <Badge
+                                tone={status === 'overdue' ? 'negative' : 'warning'}
+                              >
+                                {t(`debts.status.${status}` as const)}
+                                {d.dueDate ? ` · ${fmtDate(d.dueDate)}` : ''}
+                              </Badge>
+                            </div>
                           )}
                         </td>
                         <td className="font-mono text-xs text-fg-muted">{d.customerPhone}</td>

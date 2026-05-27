@@ -43,7 +43,8 @@ export default function App() {
       <Route path="/sales"      element={<ProtectedRoute><Sales /></ProtectedRoute>} />
       <Route path="/debts"      element={<ProtectedRoute><Debts /></ProtectedRoute>} />
       <Route path="/expenses"   element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-      <Route path="/customers"  element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/customers"        element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/customers/:slug"  element={<ProtectedRoute><Customers /></ProtectedRoute>} />
 
       {/* super_admin only */}
       <Route path="/workers"  element={<ProtectedRoute requireRole="super_admin"><Workers /></ProtectedRoute>} />

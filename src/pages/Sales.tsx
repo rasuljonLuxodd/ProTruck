@@ -21,6 +21,8 @@ import { useFormatDate } from '@/lib/useFormatters';
 import { actualCashIncome, inMonth, outstandingDebt, dailySeries, totalMargin } from '@/lib/calc';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { salePdf } from '@/lib/pdfCheque';
+import { customerProfilePath } from '@/pages/Customers';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { CartItem, PaymentType, Sale } from '@/types';
 
@@ -342,7 +344,12 @@ export default function Sales() {
                       return (
                         <tr key={s.id}>
                           <td>
-                            <div className="font-medium">{s.customerName}</div>
+                            <Link
+                              to={customerProfilePath(s.customerName)}
+                              className="font-medium hover:underline"
+                            >
+                              {s.customerName}
+                            </Link>
                             <div className="font-mono text-[11px] text-fg-muted">{s.customerPhone}</div>
                           </td>
                           <td className="max-w-[240px]">
