@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Trash2, Edit, User as UserIcon, Sliders, Users as UsersIcon, Sun, Moon, Download, Upload, Database, History, Wallet } from 'lucide-react';
+import { LogOut, Plus, Trash2, Edit, User as UserIcon, Sliders, Users as UsersIcon, Sun, Moon, Download, Upload, Database, History, Wallet, MapPin } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -17,6 +17,7 @@ import { TwoFactorSection } from '@/components/settings/TwoFactorSection';
 import { BackupSection } from '@/components/settings/BackupSection';
 import { ActivitySection } from '@/components/settings/ActivitySection';
 import { AccountsSection } from '@/components/settings/AccountsSection';
+import { LocationsSection } from '@/components/settings/LocationsSection';
 import { Select } from '@/components/ui/Select';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,7 @@ const LANGS: Array<{ code: Language; label: string }> = [
   { code: 'ru', label: 'Русский' },
 ];
 
-type SectionKey = 'profile' | 'preferences' | 'users' | 'accounts' | 'activity' | 'backup';
+type SectionKey = 'profile' | 'preferences' | 'users' | 'locations' | 'accounts' | 'activity' | 'backup';
 
 export default function Settings() {
   const t = useT();
@@ -46,6 +47,7 @@ export default function Settings() {
     { key: 'profile',     label: t('set.profile'),     icon: UserIcon, visible: true },
     { key: 'preferences', label: t('set.preferences'), icon: Sliders,  visible: true },
     { key: 'users',       label: t('set.users'),       icon: UsersIcon, visible: currentUser.role === 'super_admin' },
+    { key: 'locations',   label: t('set.locations'),   icon: MapPin,    visible: currentUser.role === 'super_admin' },
     { key: 'accounts',    label: t('set.accounts'),    icon: Wallet,    visible: currentUser.role === 'super_admin' },
     { key: 'activity',    label: t('set.activity'),    icon: History,   visible: currentUser.role === 'super_admin' },
     { key: 'backup',      label: t('set.backup'),      icon: Database,  visible: currentUser.role === 'super_admin' },
@@ -105,6 +107,7 @@ export default function Settings() {
                 />
               )}
               {section === 'users' && currentUser.role === 'super_admin' && <UsersSection />}
+              {section === 'locations' && currentUser.role === 'super_admin' && <LocationsSection />}
               {section === 'accounts' && currentUser.role === 'super_admin' && <AccountsSection />}
               {section === 'activity' && currentUser.role === 'super_admin' && <ActivitySection />}
               {section === 'backup' && currentUser.role === 'super_admin' && <BackupSection />}

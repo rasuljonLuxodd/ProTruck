@@ -77,6 +77,24 @@ export interface DebtPayment {
 }
 
 /**
+ * A physical location (shop / warehouse). Most business tables grow
+ * an optional location_id so a multi-shop owner can scope inventory,
+ * sales, and reports per location. Today the foundation is in place
+ * but query-time filtering is still rolling out.
+ */
+export interface Location {
+  id: string;
+  name: string;
+  shortCode?: string;
+  address?: string;
+  phone?: string;
+  isDefault: boolean;
+  archived: boolean;
+  note?: string;
+  createdAt: string;
+}
+
+/**
  * A cash drawer / bank account / card. Every money movement (sale,
  * expense, worker payment, debt payment) optionally points at one of
  * these via account_id. Older rows have account_id = null.
