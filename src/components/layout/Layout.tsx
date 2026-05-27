@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { SessionBanner } from '@/components/ui/SessionBanner';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
@@ -31,7 +32,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex min-h-screen bg-bg text-fg">
       <Sidebar open={open} onClose={() => setOpen(false)} />
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 pb-16 lg:pb-0">
         <OfflineBanner />
         <SessionBanner />
         <div className="mx-auto max-w-[1280px] px-5 md:px-8 py-6 md:py-8">
@@ -49,6 +50,7 @@ export function Layout({ children }: LayoutProps) {
       </main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <InstallPrompt />
+      <BottomNav onMore={() => setOpen(true)} />
     </div>
   );
 }
