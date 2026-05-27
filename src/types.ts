@@ -76,6 +76,42 @@ export interface DebtPayment {
   date: string;
 }
 
+/**
+ * A cash drawer / bank account / card. Every money movement (sale,
+ * expense, worker payment, debt payment) optionally points at one of
+ * these via account_id. Older rows have account_id = null.
+ */
+export interface Account {
+  id: string;
+  name: string;
+  kind: 'cash' | 'card' | 'bank' | 'other';
+  currency: Currency;
+  openingBalance: number;
+  isDefault: boolean;
+  archived: boolean;
+  note?: string;
+  createdAt: string;
+}
+
+/** Live balance for an account, computed by the `account_balances` view. */
+export interface AccountBalance {
+  id: string;
+  name: string;
+  kind: Account['kind'];
+  currency: Currency;
+  openingBalance: number;
+  balance: number;
+}
+
+export interface AccountTransfer {
+  id: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number;
+  note?: string;
+  createdAt: string;
+}
+
 export interface CustomerCreditLimit {
   id: string;
   name: string;
