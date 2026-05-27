@@ -25,6 +25,7 @@ import { buildCsv, downloadCsv } from '@/lib/csv';
 import { expensePdf } from '@/lib/pdfCheque';
 import { inMonth, dailySeries } from '@/lib/calc';
 import { suggestExpenseCategory } from '@/lib/smart';
+import { useAccounts } from '@/hooks/useAccounts';
 import type { Expense, ExpenseCategory, PaymentType, RecurringExpense } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 
@@ -49,6 +50,8 @@ export default function Expenses() {
   const [amount, setAmount] = useState(0);
   const [paymentType, setPaymentType] = useState<PaymentType>('naqd');
   const [date, setDate] = useState(toInputDate(new Date().toISOString()));
+  const [accountId, setAccountId] = useState<string>('');
+  const { data: accounts = [] } = useAccounts();
 
   const [filterCat, setFilterCat] = useState<ExpenseCategory | 'all'>('all');
   const [filterMonth, setFilterMonth] = useState<string>('');
@@ -123,13 +126,15 @@ export default function Expenses() {
       toast(t('form.amountRequired'), 'error');
       return;
     }
-    const payload: Omit<Expense, 'id'> = {
+    const payload: Omit<Expense, 'id'> & { accountId?: string } = {
       category,
       description: description.trim(),
       amount,
       paymentType,
       date: fromInputDate(date),
       auto: editing?.auto,
+      // Expense draws from the picked account (or the default if not set)
+      accountId: accountId || undefined,
     };
     if (editing) {
       upd.mutate(
@@ -327,13 +332,28 @@ export default function Expenses() {
                 <DatePicker value={date} onChange={setDate} />
               </Field>
             </div>
-            <Field label={t('common.paymentType')}>
-              <Select
-                value={paymentType}
-                onChange={setPaymentType}
-                options={PAYMENT_TYPES.map(p => ({ value: p, label: t(`payment.${p}` as TranslationKey) }))}
-              />
-            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label={t('common.paymentType')}>
+                <Select
+                  value={paymentType}
+                  onChange={setPaymentType}
+                  options={PAYMENT_TYPES.map(p => ({ value: p, label: t(`payment.${p}` as TranslationKey) }))}
+                />
+              </Field>
+              {accounts.length > 1 && (
+                <Field label={t('acc.title')}>
+                  <Select
+                    value={accountId}
+                    onChange={setAccountId}
+                    placeholder={t('po.noSupplier')}
+                    options={[
+                      { value: '', label: '—' },
+                      ...accounts.map(a => ({ value: a.id, label: a.name, hint: a.currency })),
+                    ]}
+                  />
+                </Field>
+              )}
+            </div>
 
             {category === 'Xom ashyo' && (
               <Field label="Supplier">

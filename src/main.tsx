@@ -8,6 +8,7 @@ import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/auth/AuthProvider';
+import { LocationProvider } from '@/state/LocationProvider';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { registerSW } from 'virtual:pwa-register';
 import './index.css';
@@ -33,11 +34,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <QueryClientProvider client={queryClient}>
             <RepositoryProvider>
               <AuthProvider>
-                <ToastProvider>
-                  <BrowserRouter>
-                    <App />
-                  </BrowserRouter>
-                </ToastProvider>
+                <LocationProvider>
+                  <ToastProvider>
+                    <BrowserRouter>
+                      <App />
+                    </BrowserRouter>
+                  </ToastProvider>
+                </LocationProvider>
               </AuthProvider>
             </RepositoryProvider>
           </QueryClientProvider>

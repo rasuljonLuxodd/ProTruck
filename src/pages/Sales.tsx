@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Search, ShoppingCart, FileDown, Download, Undo2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -23,6 +23,7 @@ import { buildCsv, downloadCsv } from '@/lib/csv';
 import { salePdf } from '@/lib/pdfCheque';
 import { customerProfilePath } from '@/lib/customerSlug';
 import { Link } from 'react-router-dom';
+import { useAccounts } from '@/hooks/useAccounts';
 import { cn } from '@/lib/utils';
 import type { CartItem, PaymentType, Sale } from '@/types';
 
@@ -61,6 +62,24 @@ export default function Sales() {
   const [pickPrice, setPickPrice] = useState(0);
   const [paymentType, setPaymentType] = useState<PaymentType>('naqd');
   const [cashPart, setCashPart] = useState(0);
+  const [accountId, setAccountId] = useState<string>('');
+  const { data: accounts = [] } = useAccounts();
+
+  // When the user picks a payment method, pre-select the default account
+  // of the matching kind. naqd → cash, karta → card, qarz → nothing (no
+  // money lands), aralash → whatever was picked or first cash.
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    const want: Array<'cash' | 'card' | 'bank' | 'other'> =
+      paymentType === 'naqd'   ? ['cash']
+    : paymentType === 'karta'  ? ['card', 'bank']
+    : paymentType === 'aralash' ? ['cash']
+    : [];
+    if (want.length === 0) { setAccountId(''); return; }
+    const matchDefault = accounts.find(a => want.includes(a.kind) && a.isDefault);
+    const matchAny     = accounts.find(a => want.includes(a.kind));
+    setAccountId(matchDefault?.id ?? matchAny?.id ?? '');
+  }, [paymentType, accounts]);
   const [debtPart, setDebtPart] = useState(0);
   const [note, setNote] = useState('');
 
@@ -209,6 +228,9 @@ export default function Sales() {
         debtPart: paymentType === 'aralash' ? debtPart : undefined,
         note: note.trim() || undefined,
         date,
+        // Tag the sale's cash side to the picked account (or nothing
+        // for pure qarz, where no money moves yet).
+        accountId: paymentType === 'qarz' ? undefined : (accountId || undefined),
       },
       {
         onSuccess: () => {
@@ -533,6 +555,23 @@ export default function Sales() {
                 ))}
               </div>
             </Field>
+
+            {/* Account picker — only when there are multiple accounts AND
+                money actually moves (skip for pure qarz). For one-account
+                setups, the default is used invisibly. */}
+            {accounts.length > 1 && paymentType !== 'qarz' && (
+              <Field label={t('acc.title')}>
+                <Select
+                  value={accountId}
+                  onChange={setAccountId}
+                  options={accounts.map(a => ({
+                    value: a.id,
+                    label: a.name,
+                    hint: a.currency,
+                  }))}
+                />
+              </Field>
+            )}
 
             {paymentType === 'aralash' && (
               <div className="grid grid-cols-2 gap-3">

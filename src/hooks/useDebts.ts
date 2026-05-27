@@ -1,20 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRepository } from '@/data/RepositoryProvider';
+import { useActiveLocationId } from '@/state/LocationProvider';
 import type { Debt, DebtPayment } from '@/types';
 
 const KEY = ['debts'] as const;
 
 export function useDebts() {
   const repo = useRepository();
-  return useQuery({ queryKey: KEY, queryFn: () => repo.listDebts() });
+  const locationId = useActiveLocationId();
+  return useQuery({
+    queryKey: [...KEY, locationId] as const,
+    queryFn: () => repo.listDebts({ locationId }),
+    enabled: !!locationId,
+  });
 }
 
 export function useAddDebt() {
   const repo = useRepository();
   const qc = useQueryClient();
+  const locationId = useActiveLocationId();
   return useMutation({
     mutationFn: (input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number }) =>
-      repo.addDebt(input),
+      repo.addDebt({ ...input, locationId: locationId ?? undefined }),
     onMutate: async input => {
       await qc.cancelQueries({ queryKey: KEY });
       const previous = qc.getQueryData<Debt[]>(KEY);

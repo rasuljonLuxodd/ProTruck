@@ -1,19 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRepository } from '@/data/RepositoryProvider';
+import { useActiveLocationId } from '@/state/LocationProvider';
 import type { Expense } from '@/types';
 
 const KEY = ['expenses'] as const;
 
 export function useExpenses() {
   const repo = useRepository();
-  return useQuery({ queryKey: KEY, queryFn: () => repo.listExpenses() });
+  const locationId = useActiveLocationId();
+  return useQuery({
+    queryKey: [...KEY, locationId] as const,
+    queryFn: () => repo.listExpenses({ locationId }),
+    enabled: !!locationId,
+  });
 }
 
 export function useAddExpense() {
   const repo = useRepository();
   const qc = useQueryClient();
+  const locationId = useActiveLocationId();
   return useMutation({
-    mutationFn: (input: Omit<Expense, 'id'>) => repo.addExpense(input),
+    mutationFn: (input: Omit<Expense, 'id'> & { accountId?: string }) =>
+      repo.addExpense({ ...input, locationId: locationId ?? undefined }),
     onMutate: async input => {
       await qc.cancelQueries({ queryKey: KEY });
       const previous = qc.getQueryData<Expense[]>(KEY);

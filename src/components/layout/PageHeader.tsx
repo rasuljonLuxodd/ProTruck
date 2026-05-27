@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Menu, Plus } from 'lucide-react';
 import { useT } from '@/i18n/LanguageProvider';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import { LocationSwitcher } from '@/components/layout/LocationSwitcher';
 
 interface Props {
   title: string;
@@ -41,6 +42,7 @@ export function PageHeader({ title, description, onMenu, onAdd, addLabel, rightS
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <LocationSwitcher />
         {rightSlot}
         <NotificationBell />
         {onAdd ? (

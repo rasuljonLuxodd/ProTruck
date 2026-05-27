@@ -13,7 +13,7 @@ import type {
   User,
   Session,
 } from '@/types';
-import type { Repository } from './repository';
+import type { Repository, ListOpts } from './repository';
 import { supabase } from './supabaseClient';
 
 // -------- row shapes returned by Supabase (snake_case) --------
@@ -215,15 +215,14 @@ function throwIfError<T>(data: T | null, error: unknown, label: string): T {
 
 export class SupabaseRepository implements Repository {
   // ============== products ==============
-  async listProducts(): Promise<Product[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
+  async listProducts(opts?: ListOpts): Promise<Product[]> {
+    let q = supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (opts?.locationId) q = q.eq('location_id', opts.locationId);
+    const { data, error } = await q;
     return throwIfError(data, error, 'listProducts').map(mapProduct);
   }
 
-  async addProduct(input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'>): Promise<Product> {
+  async addProduct(input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'> & { locationId?: string }): Promise<Product> {
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -234,6 +233,7 @@ export class SupabaseRepository implements Repository {
         cost: input.cost ?? 0,
         default_price: input.defaultPrice ?? null,
         image_url: input.imageUrl ?? null,
+        location_id: input.locationId ?? null,
       })
       .select()
       .single();
@@ -265,18 +265,22 @@ export class SupabaseRepository implements Repository {
   }
 
   // ============== production logs ==============
-  async listProductionLogs(): Promise<ProductionLog[]> {
-    const { data, error } = await supabase
-      .from('production_logs')
-      .select('*')
-      .order('date', { ascending: false });
+  async listProductionLogs(opts?: ListOpts): Promise<ProductionLog[]> {
+    let q = supabase.from('production_logs').select('*').order('date', { ascending: false });
+    if (opts?.locationId) q = q.eq('location_id', opts.locationId);
+    const { data, error } = await q;
     return throwIfError(data, error, 'listProductionLogs').map(mapProductionLog);
   }
 
-  async addProductionLog(input: Omit<ProductionLog, 'id'>): Promise<ProductionLog> {
+  async addProductionLog(input: Omit<ProductionLog, 'id'> & { locationId?: string }): Promise<ProductionLog> {
     const { data, error } = await supabase
       .from('production_logs')
-      .insert({ product_id: input.productId, quantity: input.quantity, date: input.date })
+      .insert({
+        product_id: input.productId,
+        quantity: input.quantity,
+        date: input.date,
+        location_id: input.locationId ?? null,
+      })
       .select()
       .single();
     return mapProductionLog(throwIfError(data, error, 'addProductionLog'));
@@ -344,15 +348,14 @@ export class SupabaseRepository implements Repository {
   }
 
   // ============== sales ==============
-  async listSales(): Promise<Sale[]> {
-    const { data, error } = await supabase
-      .from('sales')
-      .select('*')
-      .order('date', { ascending: false });
+  async listSales(opts?: ListOpts): Promise<Sale[]> {
+    let q = supabase.from('sales').select('*').order('date', { ascending: false });
+    if (opts?.locationId) q = q.eq('location_id', opts.locationId);
+    const { data, error } = await q;
     return throwIfError(data, error, 'listSales').map(mapSale);
   }
 
-  async addSale(input: Omit<Sale, 'id'>): Promise<Sale> {
+  async addSale(input: Omit<Sale, 'id'> & { locationId?: string }): Promise<Sale> {
     const { data, error } = await supabase
       .from('sales')
       .insert({
@@ -365,6 +368,7 @@ export class SupabaseRepository implements Repository {
         debt_part: input.debtPart ?? null,
         note: input.note ?? null,
         date: input.date,
+        location_id: input.locationId ?? null,
       })
       .select()
       .single();
@@ -390,6 +394,8 @@ export class SupabaseRepository implements Repository {
     debtPart?: number;
     note?: string;
     date: string;
+    locationId?: string;
+    accountId?: string;
   }): Promise<{ saleId: string; debtId?: string; total: number }> {
     const { data, error } = await supabase.rpc('sell_products', {
       p_customer_name:  input.customerName,
@@ -400,6 +406,8 @@ export class SupabaseRepository implements Repository {
       p_debt_part:      input.debtPart ?? null,
       p_note:           input.note ?? null,
       p_date:           input.date,
+      p_location_id:    input.locationId ?? null,
+      p_account_id:     input.accountId ?? null,
     });
     if (error) {
       // Surface domain errors so the UI can show a friendly message.
@@ -417,9 +425,11 @@ export class SupabaseRepository implements Repository {
   }
 
   // ============== debts ==============
-  async listDebts(): Promise<Debt[]> {
+  async listDebts(opts?: ListOpts): Promise<Debt[]> {
+    let debtsQ = supabase.from('debts').select('*').order('date', { ascending: false });
+    if (opts?.locationId) debtsQ = debtsQ.eq('location_id', opts.locationId);
     const [debtsRes, paymentsRes] = await Promise.all([
-      supabase.from('debts').select('*').order('date', { ascending: false }),
+      debtsQ,
       supabase.from('debt_payments').select('*').order('date', { ascending: true }),
     ]);
     if (debtsRes.error) throw new Error(`listDebts: ${debtsRes.error.message}`);
@@ -436,7 +446,7 @@ export class SupabaseRepository implements Repository {
   }
 
   async addDebt(
-    input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number },
+    input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number; locationId?: string },
   ): Promise<Debt> {
     const { data, error } = await supabase
       .from('debts')
@@ -450,6 +460,7 @@ export class SupabaseRepository implements Repository {
         date: input.date,
         due_date: input.dueDate ?? null,
         note: input.note ?? null,
+        location_id: input.locationId ?? null,
       })
       .select()
       .single();
@@ -506,15 +517,14 @@ export class SupabaseRepository implements Repository {
   }
 
   // ============== expenses ==============
-  async listExpenses(): Promise<Expense[]> {
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('date', { ascending: false });
+  async listExpenses(opts?: ListOpts): Promise<Expense[]> {
+    let q = supabase.from('expenses').select('*').order('date', { ascending: false });
+    if (opts?.locationId) q = q.eq('location_id', opts.locationId);
+    const { data, error } = await q;
     return throwIfError(data, error, 'listExpenses').map(mapExpense);
   }
 
-  async addExpense(input: Omit<Expense, 'id'>): Promise<Expense> {
+  async addExpense(input: Omit<Expense, 'id'> & { locationId?: string; accountId?: string }): Promise<Expense> {
     const { data, error } = await supabase
       .from('expenses')
       .insert({
@@ -524,6 +534,8 @@ export class SupabaseRepository implements Repository {
         payment_type: input.paymentType,
         date: input.date,
         auto: input.auto ?? false,
+        location_id: input.locationId ?? null,
+        account_id: input.accountId ?? null,
       })
       .select()
       .single();

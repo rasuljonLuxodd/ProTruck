@@ -21,16 +21,25 @@ import type {
  * so the SupabaseRepository (or any other) can be a drop-in
  * replacement without UI changes.
  */
+/**
+ * Optional location scope passed to list methods. When set, only rows
+ * matching that location_id come back. The Supabase backend filters
+ * server-side; the LocalStorage backend filters client-side.
+ */
+export interface ListOpts {
+  locationId?: string | null;
+}
+
 export interface Repository {
   // products
-  listProducts(): Promise<Product[]>;
-  addProduct(input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'>): Promise<Product>;
+  listProducts(opts?: ListOpts): Promise<Product[]>;
+  addProduct(input: Omit<Product, 'id' | 'createdAt' | 'lastUpdated'> & { locationId?: string }): Promise<Product>;
   updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
 
   // production
-  listProductionLogs(): Promise<ProductionLog[]>;
-  addProductionLog(input: Omit<ProductionLog, 'id'>): Promise<ProductionLog>;
+  listProductionLogs(opts?: ListOpts): Promise<ProductionLog[]>;
+  addProductionLog(input: Omit<ProductionLog, 'id'> & { locationId?: string }): Promise<ProductionLog>;
   /**
    * Atomic produce-with-BOM: increments the finished product's stock
    * AND deducts each raw input (`qty × quantity_per_unit`). Throws
@@ -45,8 +54,8 @@ export interface Repository {
   deleteBomItem(id: string): Promise<void>;
 
   // sales
-  listSales(): Promise<Sale[]>;
-  addSale(input: Omit<Sale, 'id'>): Promise<Sale>;
+  listSales(opts?: ListOpts): Promise<Sale[]>;
+  addSale(input: Omit<Sale, 'id'> & { locationId?: string }): Promise<Sale>;
   /**
    * Atomic sell: validates stock, decrements products, inserts sale,
    * optionally creates a debt, and appends an action log — all in a
@@ -62,6 +71,8 @@ export interface Repository {
     debtPart?: number;
     note?: string;
     date: string;
+    locationId?: string;
+    accountId?: string;
   }): Promise<{ saleId: string; debtId?: string; total: number }>;
   /**
    * Reverse a sale (refund): restore stock, drop linked debt, log it.
@@ -71,15 +82,15 @@ export interface Repository {
   deleteSale(id: string): Promise<void>;
 
   // debts
-  listDebts(): Promise<Debt[]>;
-  addDebt(input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number }): Promise<Debt>;
+  listDebts(opts?: ListOpts): Promise<Debt[]>;
+  addDebt(input: Omit<Debt, 'id' | 'payments' | 'originalAmount'> & { originalAmount?: number; locationId?: string }): Promise<Debt>;
   payDebtPartial(id: string, payment: DebtPayment): Promise<Debt>;
   payDebtFull(id: string): Promise<void>;
   deleteDebt(id: string): Promise<void>;
 
   // expenses
-  listExpenses(): Promise<Expense[]>;
-  addExpense(input: Omit<Expense, 'id'>): Promise<Expense>;
+  listExpenses(opts?: ListOpts): Promise<Expense[]>;
+  addExpense(input: Omit<Expense, 'id'> & { locationId?: string; accountId?: string }): Promise<Expense>;
   updateExpense(id: string, patch: Partial<Expense>): Promise<Expense>;
   deleteExpense(id: string): Promise<void>;
 

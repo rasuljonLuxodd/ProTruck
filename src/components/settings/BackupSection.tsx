@@ -4,6 +4,7 @@ import { Download, Upload, Database, AlertTriangle, CheckCircle2 } from 'lucide-
 import { useT } from '@/i18n/LanguageProvider';
 import { useToast } from '@/components/ui/Toast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { SystemHealthCard } from '@/components/settings/SystemHealthCard';
 import {
   exportAllData, downloadBackup, readBackupFile, importAllData,
   type BackupFile, type ImportSummary,
@@ -91,12 +92,14 @@ export function BackupSection() {
 
   return (
     <div className="space-y-4">
+      <SystemHealthCard />
+
       <header>
-        <h1 className="text-lg font-semibold flex items-center gap-2">
+        <h1 className="display text-[20px] leading-none flex items-center gap-2">
           <Database className="w-5 h-5" />
           {t('backup.title')}
         </h1>
-        <p className="text-sm text-fg-muted mt-1 max-w-prose leading-relaxed">
+        <p className="text-sm text-fg-muted mt-1.5 max-w-prose leading-relaxed">
           {t('backup.intro')}
         </p>
       </header>
