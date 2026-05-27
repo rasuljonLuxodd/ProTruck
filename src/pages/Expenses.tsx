@@ -24,6 +24,7 @@ import { useFormatDate } from '@/lib/useFormatters';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { expensePdf } from '@/lib/pdfCheque';
 import { inMonth, dailySeries } from '@/lib/calc';
+import { suggestExpenseCategory } from '@/lib/smart';
 import type { Expense, ExpenseCategory, PaymentType, RecurringExpense } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 
@@ -302,7 +303,21 @@ export default function Expenses() {
               />
             </Field>
             <Field label={t('common.description')}>
-              <input className="input" value={description} onChange={e => setDescription(e.target.value)} />
+              <input
+                className="input"
+                value={description}
+                onChange={e => {
+                  const next = e.target.value;
+                  setDescription(next);
+                  // Only auto-fill category if the user hasn't touched it.
+                  // We treat "Boshqa" (the default) as untouched. Once the
+                  // user picks a real category, we stop overriding them.
+                  if (!editing && category === 'Boshqa') {
+                    const suggestion = suggestExpenseCategory(next, expenses);
+                    if (suggestion) setCategory(suggestion);
+                  }
+                }}
+              />
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('common.amount')}>

@@ -12,6 +12,7 @@ import { WelcomeHero } from '@/components/dashboard/WelcomeHero';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { InsightsRail } from '@/components/dashboard/InsightsRail';
 import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
+import { SmartAlerts } from '@/components/dashboard/SmartAlerts';
 import { useT } from '@/i18n/LanguageProvider';
 import { useAuth } from '@/auth/AuthProvider';
 import { useSales } from '@/hooks/useSales';
@@ -221,6 +222,11 @@ export default function Dashboard() {
               />
             </div>
           </section>
+
+          {/* Smart alerts — only render when there's something to flag */}
+          <div className="mt-4 animate-slideIn stagger-3">
+            <SmartAlerts />
+          </div>
 
           {/* Activity timeline at the bottom */}
           <div className="mt-4 animate-slideIn stagger-4">
