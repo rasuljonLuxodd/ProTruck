@@ -127,6 +127,24 @@ export default function Reports() {
   const prevSales = useMemo(() => sales.filter(s => prevInRange(s.date)), [sales, prevRange]);
   const prevExpenses = useMemo(() => expenses.filter(e => prevInRange(e.date)), [expenses, prevRange]);
 
+  // Year-over-year window: same calendar dates one year earlier. Useful
+  // for tax planning ("this March vs last March") in a way that
+  // period-over-period (which compares to the prior 30 days) can't be.
+  const yoyRange = useMemo(() => {
+    function shiftYear(ms: number, years: number) {
+      const d = new Date(ms);
+      d.setFullYear(d.getFullYear() + years);
+      return d.getTime();
+    }
+    return { from: shiftYear(range.from, -1), to: shiftYear(range.to, -1) };
+  }, [range]);
+  const yoyInRange = (iso: string) => {
+    const t0 = new Date(iso).getTime();
+    return t0 >= yoyRange.from && t0 <= yoyRange.to;
+  };
+  const yoySales = useMemo(() => sales.filter(s => yoyInRange(s.date)), [sales, yoyRange]);
+  const yoyExpenses = useMemo(() => expenses.filter(e => yoyInRange(e.date)), [expenses, yoyRange]);
+
   // Index products for margin calc
   const productsById = useMemo(() => {
     const m = new Map<string, { cost: number; name: string }>();
@@ -147,6 +165,17 @@ export default function Reports() {
   const prevRevenue     = useMemo(() => actualCashIncome(prevSales), [prevSales]);
   const prevMargin      = useMemo(() => totalMargin(prevSales, productsById), [prevSales, productsById]);
   const prevExpAmt      = useMemo(() => expenseTotal(prevExpenses), [prevExpenses]);
+
+  // YoY metrics — same window shifted -1 year
+  const yoyRevenue = useMemo(() => actualCashIncome(yoySales), [yoySales]);
+  const yoyMargin  = useMemo(() => totalMargin(yoySales, productsById), [yoySales, productsById]);
+  const yoyCogs    = useMemo(() => yoySales.reduce((sum, s) =>
+    sum + s.items.reduce((acc, it) => acc + (productsById.get(it.productId)?.cost ?? 0) * it.quantity, 0), 0), [yoySales, productsById]);
+  const yoyExp     = useMemo(() => expenseTotal(yoyExpenses), [yoyExpenses]);
+  const yoyProfit  = yoyRevenue - yoyCogs - yoyExp;
+  // We only show YoY meaningfully when there's actual data from a year
+  // back. Otherwise it's noise and we hide the comparison.
+  const hasYoyData = yoySales.length + yoyExpenses.length > 0;
 
   // Expense breakdown by category
   const expenseByCategory = useMemo(() => {
@@ -304,6 +333,25 @@ export default function Reports() {
               tone={netProfit >= 0 ? 'positive' : 'negative'}
             />
           </div>
+
+          {/* Year-over-year comparison strip — only when there's data from
+              a year ago, otherwise it's just zero noise. */}
+          {hasYoyData && (
+            <div className="card p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="kicker">{t('rep.yoy')}</div>
+                <div className="text-[10px] text-fg-subtle tnum">
+                  {fmtDate(new Date(yoyRange.from).toISOString())} — {fmtDate(new Date(yoyRange.to).toISOString())}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <YoyTile label={t('rep.revenue')}     now={revenue}     then={yoyRevenue} />
+                <YoyTile label={t('rep.grossMargin')} now={grossMargin} then={yoyMargin} />
+                <YoyTile label={t('rep.expenses')}    now={totalExp}    then={yoyExp} invert />
+                <YoyTile label={t('rep.netProfit')}   now={netProfit}   then={yoyProfit} />
+              </div>
+            </div>
+          )}
 
           {/* Profit & Loss + expense breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
@@ -570,6 +618,44 @@ function HeadlineCard({ title, value, icon: Icon, change, tone = 'default', inve
             {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {up ? '+' : ''}{change!.toFixed(1)}%
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface YoyTileProps {
+  label: string;
+  now: number;
+  then: number;
+  /** When true, an increase reads bad (used for expenses). */
+  invert?: boolean;
+}
+
+/**
+ * Side-by-side year-over-year tile. Shows last-year value above, this
+ * year below, plus the delta as a percentage. Tinted so the owner
+ * can read it in one glance.
+ */
+function YoyTile({ label, now, then, invert }: YoyTileProps) {
+  const delta = now - then;
+  const pct = then === 0 ? null : (delta / Math.abs(then)) * 100;
+  const up = delta >= 0;
+  const goodMove = invert ? !up : up;
+  return (
+    <div className="bg-surface border border-border rounded-lg p-3">
+      <div className="text-[10px] uppercase tracking-wider text-fg-muted">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className="text-[11px] text-fg-subtle tnum">{formatUZS(then)}</span>
+        <span className="text-fg-subtle">→</span>
+        <span className="text-base font-semibold tnum">{formatUZS(now)}</span>
+      </div>
+      {pct !== null && (
+        <div className={cn(
+          'mt-1 text-[10px] font-medium tnum',
+          goodMove ? 'text-positive' : 'text-negative',
+        )}>
+          {up ? '+' : ''}{pct.toFixed(1)}%
         </div>
       )}
     </div>

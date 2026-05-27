@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { SessionBanner } from '@/components/ui/SessionBanner';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { InstallPrompt } from '@/components/ui/InstallPrompt';
 
 interface LayoutProps {
   children: (helpers: { openMenu: () => void; openPalette: () => void }) => ReactNode;
@@ -47,6 +48,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <InstallPrompt />
     </div>
   );
 }

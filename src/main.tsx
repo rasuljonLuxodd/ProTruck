@@ -8,6 +8,7 @@ import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/auth/AuthProvider';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 
@@ -26,20 +27,22 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <LanguageProvider>
-        <QueryClientProvider client={queryClient}>
-          <RepositoryProvider>
-            <AuthProvider>
-              <ToastProvider>
-                <BrowserRouter>
-                  <App />
-                </BrowserRouter>
-              </ToastProvider>
-            </AuthProvider>
-          </RepositoryProvider>
-        </QueryClientProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <QueryClientProvider client={queryClient}>
+            <RepositoryProvider>
+              <AuthProvider>
+                <ToastProvider>
+                  <BrowserRouter>
+                    <App />
+                  </BrowserRouter>
+                </ToastProvider>
+              </AuthProvider>
+            </RepositoryProvider>
+          </QueryClientProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
