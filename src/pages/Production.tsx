@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Package, Edit, Upload, ListTree } from 'lucide-react';
+import { Plus, Trash2, Package, Edit, Upload, ListTree, ClipboardCheck } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -14,6 +14,7 @@ import { useProducts, useAddProduct, useDeleteProduct, useUpdateProduct } from '
 import { useProductionLogs } from '@/hooks/useProductionLogs';
 import { useProduceWithBom } from '@/hooks/useBomItems';
 import { BomEditor } from '@/components/ui/BomEditor';
+import { StocktakeModal } from '@/components/ui/StocktakeModal';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatDate } from '@/lib/format';
 import { productionThisMonth } from '@/lib/calc';
@@ -86,6 +87,7 @@ export default function Production() {
   const [dailyOpen, setDailyOpen] = useState<string | null>(null);
   const [dailyQty, setDailyQty] = useState(0);
   const [bomFor, setBomFor] = useState<Product | null>(null);
+  const [stocktakeOpen, setStocktakeOpen] = useState(false);
 
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -243,13 +245,25 @@ export default function Production() {
             onMenu={openMenu}
             onAdd={openNew}
             rightSlot={
-              <button
-                className="btn-secondary"
-                onClick={() => { setImportOpen(true); setImportRows([]); setImportError(null); }}
-              >
-                <Upload className="w-3.5 h-3.5" />
-                CSV
-              </button>
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setStocktakeOpen(true)}
+                  title={t('stocktake.title')}
+                  disabled={products.length === 0}
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t('stocktake.cta')}</span>
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => { setImportOpen(true); setImportRows([]); setImportError(null); }}
+                  title="CSV"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">CSV</span>
+                </button>
+              </>
             }
           />
 
@@ -459,6 +473,12 @@ export default function Production() {
             product={bomFor}
             allProducts={products}
             onClose={() => setBomFor(null)}
+          />
+
+          <StocktakeModal
+            open={stocktakeOpen}
+            onClose={() => setStocktakeOpen(false)}
+            products={products}
           />
 
           <Modal
