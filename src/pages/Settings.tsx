@@ -19,7 +19,7 @@ import { ActivitySection } from '@/components/settings/ActivitySection';
 import { AccountsSection } from '@/components/settings/AccountsSection';
 import { LocationsSection } from '@/components/settings/LocationsSection';
 import { Select } from '@/components/ui/Select';
-import { formatDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { cn } from '@/lib/utils';
 import type { Language, Role, User } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
@@ -285,6 +285,7 @@ function PreferencesSection({
 function UsersSection() {
   const t = useT();
   const { toast } = useToast();
+  const fmtDate = useFormatDate();
   const { currentUser, refresh, createUser } = useAuth();
   const { data: users = [] } = useUsers();
   const updateUser = useUpdateUser();
@@ -409,7 +410,7 @@ function UsersSection() {
                       {t(`role.${u.role}` as TranslationKey)}
                     </Badge>
                   </td>
-                  <td className="text-fg-muted">{formatDate(u.createdAt)}</td>
+                  <td className="text-fg-muted">{fmtDate(u.createdAt)}</td>
                   <td className="text-right space-x-1 whitespace-nowrap">
                     <button className="btn-ghost !py-1.5" onClick={() => startEdit(u)}>
                       <Edit className="w-3.5 h-3.5" />

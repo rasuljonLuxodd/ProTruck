@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatUZS, formatMoney, formatNumber, formatDate, daysBetween,
+  formatUZS, formatMoney, formatNumber, formatDate, formatDateLocale, daysBetween,
   percentChange, formatPercent,
 } from './format';
 
@@ -48,6 +48,28 @@ describe('formatDate', () => {
   it('returns empty string on invalid input', () => {
     expect(formatDate(undefined)).toBe('');
     expect(formatDate('not-a-date')).toBe('');
+  });
+});
+
+describe('formatDateLocale', () => {
+  // Pin the test date to local noon so timezone offsets can't shift the day
+  const may27 = new Date(2026, 4, 27, 12, 0, 0).toISOString();
+
+  it('renders day month year for Uzbek', () => {
+    expect(formatDateLocale(may27, 'uz')).toBe('27 may 2026');
+  });
+  it('renders Month day, year for English', () => {
+    expect(formatDateLocale(may27, 'en')).toBe('May 27, 2026');
+  });
+  it('renders day month year for Russian', () => {
+    expect(formatDateLocale(may27, 'ru')).toBe('27 мая 2026');
+  });
+  it('never returns the buggy CLDR "M05" shape', () => {
+    expect(formatDateLocale(may27, 'uz')).not.toMatch(/M\d{2}/);
+  });
+  it('returns empty string on invalid input', () => {
+    expect(formatDateLocale(undefined, 'uz')).toBe('');
+    expect(formatDateLocale('bogus', 'en')).toBe('');
   });
 });
 

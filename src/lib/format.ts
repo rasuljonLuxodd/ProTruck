@@ -46,8 +46,29 @@ export function formatDate(iso: string | undefined | null): string {
   return `${y}-${m}-${day}`;
 }
 
-// Locale-aware "Jan 5", "5 янв" etc. Currently used in receipt/payslip print.
-const LOCALE_MAP = { uz: 'uz-UZ-u-ca-iso8601', en: 'en-US', ru: 'ru-RU' } as const;
+/**
+ * Locale-aware date formatter: "27 May 2026", "May 27, 2026", "27 мая 2026".
+ *
+ * We don't use Intl.DateTimeFormat for Uzbek because the bundled CLDR
+ * locale produces output like "2026 M05 27" (the literal letter "M"
+ * before the month number) which reads as a software bug to most users.
+ * Hardcoded month-name tables give predictable, readable output across
+ * all three languages without depending on a particular runtime's CLDR
+ * version.
+ */
+const MONTHS_UZ = [
+  'yan', 'fev', 'mar', 'apr', 'may', 'iyn',
+  'iyl', 'avg', 'sen', 'okt', 'noy', 'dek',
+];
+const MONTHS_EN = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+const MONTHS_RU = [
+  'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+  'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+];
+
 export function formatDateLocale(
   iso: string | undefined | null,
   lang: 'uz' | 'en' | 'ru' = 'en',
@@ -55,15 +76,16 @@ export function formatDateLocale(
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  try {
-    return new Intl.DateTimeFormat(LOCALE_MAP[lang], {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(d);
-  } catch {
-    return formatDate(iso);
+  const day = d.getDate();
+  const monthIdx = d.getMonth();
+  const year = d.getFullYear();
+  if (lang === 'en') {
+    // "May 27, 2026" — standard US/EN format
+    return `${MONTHS_EN[monthIdx]} ${day}, ${year}`;
   }
+  // UZ & RU both use day-month-year ordering
+  const months = lang === 'ru' ? MONTHS_RU : MONTHS_UZ;
+  return `${day} ${months[monthIdx]} ${year}`;
 }
 
 export function toInputDate(iso: string | undefined | null): string {

@@ -19,6 +19,7 @@ import {
 import { useAddExpense } from '@/hooks/useExpenses';
 import { useAddActionLog } from '@/hooks/useActionLogs';
 import { formatUZS, formatDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { workerPayoutDue, currentMonthDays } from '@/lib/calc';
 import { cn } from '@/lib/utils';
 import type { PaymentType, Worker, WorkerPayment } from '@/types';
@@ -33,6 +34,7 @@ function initials(name: string) {
 export default function Workers() {
   const t = useT();
   const { toast } = useToast();
+  const fmtDate = useFormatDate();
   const { data: workers = [] } = useWorkers();
   const addWorker = useAddWorker();
   const updWorker = useUpdateWorker();
@@ -581,7 +583,7 @@ export default function Workers() {
                         <li key={p.id} className="flex items-center justify-between bg-surface border border-border rounded-lg px-3 py-2">
                           <div>
                             <div className="text-sm font-semibold tnum">{formatUZS(p.amount)}</div>
-                            <div className="text-xs text-fg-muted">{formatDate(p.date)} · {t(`payment.${p.paymentType}` as TranslationKey)}</div>
+                            <div className="text-xs text-fg-muted">{fmtDate(p.date)} · {t(`payment.${p.paymentType}` as TranslationKey)}</div>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="text-[11px] text-fg-subtle">
@@ -615,7 +617,7 @@ export default function Workers() {
               <div>
                 <div className="text-center mb-4">
                   <div className="font-sans text-base font-bold">ProTrack</div>
-                  <div className="text-xs">{t('common.payslip')} · {formatDate(payslipFor.payment.date)}</div>
+                  <div className="text-xs">{t('common.payslip')} · {fmtDate(payslipFor.payment.date)}</div>
                 </div>
                 <div className="border-t border-b border-dashed border-fg py-2 mb-3 space-y-0.5 text-xs">
                   <div className="flex justify-between">

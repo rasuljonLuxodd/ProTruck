@@ -16,7 +16,7 @@ import { useProduceWithBom } from '@/hooks/useBomItems';
 import { BomEditor } from '@/components/ui/BomEditor';
 import { StocktakeModal } from '@/components/ui/StocktakeModal';
 import { useAddActionLog } from '@/hooks/useActionLogs';
-import { formatDate } from '@/lib/format';
+import { useFormatDate } from '@/lib/useFormatters';
 import { productionThisMonth } from '@/lib/calc';
 import { parseCsv } from '@/lib/csv';
 import { supabase } from '@/data/supabaseClient';
@@ -32,6 +32,7 @@ export default function Production() {
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const produceWithBom = useProduceWithBom();
+  const fmtDate = useFormatDate();
   const addAction = useAddActionLog();
 
   const [newOpen, setNewOpen] = useState(false);
@@ -324,7 +325,7 @@ export default function Production() {
                           {p.stock <= p.minStock ? ` · ${t('prod.lowStock')}` : ''}
                         </Badge>
                       </td>
-                      <td className="text-fg-muted font-mono text-xs">{formatDate(p.lastUpdated)}</td>
+                      <td className="text-fg-muted text-xs whitespace-nowrap">{fmtDate(p.lastUpdated)}</td>
                       <td className="text-right space-x-1 whitespace-nowrap">
                         <button
                           className="btn-secondary !py-1.5 !text-xs"
