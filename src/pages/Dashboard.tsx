@@ -47,9 +47,15 @@ export default function Dashboard() {
   const products   = productsQ.data ?? [];
   const workers    = workersQ.data ?? [];
 
+  // Use `isPending` (no data yet) rather than `isLoading` (isPending &&
+  // isFetching). Because the location-scoped queries start DISABLED until
+  // the active location resolves, `isLoading` briefly reads false-then-
+  // true-then-false, which made the hero flash in and out. `isPending`
+  // stays true continuously from first paint until data actually lands,
+  // so the loading→content transition happens exactly once.
   const initialLoading =
-    salesQ.isLoading || debtsQ.isLoading || expensesQ.isLoading ||
-    productionQ.isLoading || actionsQ.isLoading || productsQ.isLoading;
+    salesQ.isPending || debtsQ.isPending || expensesQ.isPending ||
+    productionQ.isPending || productsQ.isPending;
 
   // ---------- derived metrics ----------
   const now = useMemo(() => new Date(), []);
@@ -97,10 +103,12 @@ export default function Dashboard() {
     { labelKey: 'welcome.step4', descKey: 'welcome.step4Desc', to: '/expenses',   done: expenses.length > 0, icon: Receipt },
   ], [products.length, sales.length, workers.length, expenses.length]);
 
-  const showOnboarding = !initialLoading && sales.length === 0;
+  // Onboarding is now a strip UNDER the hero (shown until every step is
+  // done), never a replacement for it. Previously we swapped the hero out
+  // for the checklist when sales === 0, which — combined with the loading
+  // race above — made the hero flash in and disappear.
+  const showOnboardingStrip = !initialLoading && onboardingSteps.some(s => !s.done);
 
-  // Compact ratio: showed onboarding only if not yet started; otherwise the
-  // hero is sufficient.
   const _ = currentUser; // keep linter happy (we only need the auth presence)
   void _;
 
@@ -110,21 +118,26 @@ export default function Dashboard() {
         <>
           <PageHeader title={t('nav.dashboard')} onMenu={openMenu} />
 
-          {/* Hero: always shown, switches between onboarding-empty vs real metric */}
-          {showOnboarding ? (
-            <OnboardingChecklist steps={onboardingSteps} />
-          ) : (
-            <WelcomeHero
-              todayRevenue={todayRevenue}
-              yesterdayRevenue={yesterdayRevenue}
-              spark={sparkValues}
-              live={useSupabase}
-              inline={[
-                { labelKey: 'dash.salesToday',        n: todayCount },
-                { labelKey: 'dash.salesWeek',         n: weekCount },
-                { labelKey: 'dash.outstandingDebts',  n: outstandingDebts },
-              ]}
-            />
+          {/* Hero: ALWAYS shown. The money metric is the point of the
+              dashboard, so it never gets swapped out. Onboarding lives as
+              a strip below until the user finishes setup. */}
+          <WelcomeHero
+            todayRevenue={todayRevenue}
+            yesterdayRevenue={yesterdayRevenue}
+            spark={sparkValues}
+            live={useSupabase}
+            inline={[
+              { labelKey: 'dash.salesToday',        n: todayCount },
+              { labelKey: 'dash.salesWeek',         n: weekCount },
+              { labelKey: 'dash.outstandingDebts',  n: outstandingDebts },
+            ]}
+          />
+
+          {/* First-run onboarding strip — only while steps remain undone */}
+          {showOnboardingStrip && (
+            <div className="mt-4">
+              <OnboardingChecklist steps={onboardingSteps} />
+            </div>
           )}
 
           {/* Quick actions strip: shortcuts to the most common write actions */}
@@ -232,13 +245,6 @@ export default function Dashboard() {
           <div className="mt-4 animate-slideIn stagger-4">
             <ActivityTimeline actions={actions.slice(0, 20)} />
           </div>
-
-          {/* Inline onboarding banner when sales exist but checklist isn't done */}
-          {!showOnboarding && onboardingSteps.some(s => !s.done) && (
-            <div className="mt-4">
-              <OnboardingChecklist steps={onboardingSteps} />
-            </div>
-          )}
 
           {/* unused — silences month-vs-month dead code warning */}
           {false && <span>{inMonth(todayISO, now.getFullYear(), now.getMonth()) ? '' : ''}</span>}
