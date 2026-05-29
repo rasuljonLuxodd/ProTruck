@@ -27,13 +27,20 @@ export function useSuppliers() {
 export function useAddSupplier() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; phone?: string; note?: string }) => {
-      const { error } = await supabase.from('suppliers').insert({
+    mutationFn: async (input: { name: string; phone?: string; note?: string }): Promise<Supplier> => {
+      const { data, error } = await supabase.from('suppliers').insert({
         name: input.name.trim(),
         phone: input.phone ?? '',
         note: input.note ?? null,
-      });
+      }).select().single();
       if (error) throw new Error(error.message);
+      return {
+        id: data.id,
+        name: data.name,
+        phone: data.phone,
+        note: data.note ?? undefined,
+        createdAt: data.created_at,
+      };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });

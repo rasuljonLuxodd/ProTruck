@@ -51,6 +51,7 @@ export default function Expenses() {
   const [paymentType, setPaymentType] = useState<PaymentType>('naqd');
   const [date, setDate] = useState(toInputDate(new Date().toISOString()));
   const [accountId, setAccountId] = useState<string>('');
+  const [supplierId, setSupplierId] = useState<string>('');
   const { data: accounts = [] } = useAccounts();
 
   const [filterCat, setFilterCat] = useState<ExpenseCategory | 'all'>('all');
@@ -104,6 +105,7 @@ export default function Expenses() {
     setCategory('Boshqa'); setDescription(''); setAmount(0);
     setPaymentType('naqd');
     setDate(toInputDate(new Date().toISOString()));
+    setAccountId(''); setSupplierId('');
     setEditing(null);
   }
 
@@ -114,6 +116,7 @@ export default function Expenses() {
     setAmount(e.amount);
     setPaymentType(e.paymentType);
     setDate(toInputDate(e.date));
+    setSupplierId(e.supplierId ?? '');
     setOpen(true);
   }
 
@@ -135,6 +138,8 @@ export default function Expenses() {
       auto: editing?.auto,
       // Expense draws from the picked account (or the default if not set)
       accountId: accountId || undefined,
+      // Persist the supplier when buying raw materials
+      supplierId: supplierId || undefined,
     };
     if (editing) {
       upd.mutate(
@@ -356,25 +361,34 @@ export default function Expenses() {
             </div>
 
             {category === 'Xom ashyo' && (
-              <Field label="Supplier">
+              <Field label={t('po.supplier')}>
                 <div className="flex gap-2">
                   <Select
                     className="flex-1"
-                    value=""
-                    onChange={() => { /* TODO: persist supplier_id on the expense */ }}
+                    value={supplierId}
+                    onChange={setSupplierId}
                     placeholder="—"
-                    options={suppliers.map(s => ({ value: s.id, label: s.name }))}
+                    options={[
+                      { value: '', label: '—' },
+                      ...suppliers.map(s => ({ value: s.id, label: s.name })),
+                    ]}
                   />
                   <input
                     className="input flex-1"
-                    placeholder="+ new supplier"
+                    placeholder={t('exp.newSupplier')}
                     value={newSupplierName}
                     onChange={e => setNewSupplierName(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && newSupplierName.trim()) {
                         e.preventDefault();
                         addSupplier.mutate({ name: newSupplierName.trim() }, {
-                          onSuccess: () => { setNewSupplierName(''); toast(t('toast.saved')); },
+                          onSuccess: (created) => {
+                            // Auto-select the supplier we just created
+                            if (created?.id) setSupplierId(created.id);
+                            setNewSupplierName('');
+                            toast(t('toast.saved'));
+                          },
+                          onError: () => toast(t('toast.error'), 'error'),
                         });
                       }
                     }}

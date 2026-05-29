@@ -81,6 +81,7 @@ interface ExpenseRow {
   payment_type: Expense['paymentType'];
   date: string;
   auto: boolean;
+  supplier_id: string | null;
 }
 interface WorkerRow {
   id: string;
@@ -172,6 +173,7 @@ const mapExpense = (r: ExpenseRow): Expense => ({
   paymentType: r.payment_type,
   date: r.date,
   auto: r.auto,
+  supplierId: r.supplier_id ?? undefined,
 });
 
 const mapWorkerPayment = (r: WorkerPaymentRow): WorkerPayment => ({
@@ -536,6 +538,7 @@ export class SupabaseRepository implements Repository {
         auto: input.auto ?? false,
         location_id: input.locationId ?? null,
         account_id: input.accountId ?? null,
+        supplier_id: input.supplierId ?? null,
       })
       .select()
       .single();
@@ -550,6 +553,7 @@ export class SupabaseRepository implements Repository {
     if (patch.paymentType !== undefined) payload.payment_type = patch.paymentType;
     if (patch.date !== undefined) payload.date = patch.date;
     if (patch.auto !== undefined) payload.auto = patch.auto;
+    if (patch.supplierId !== undefined) payload.supplier_id = patch.supplierId ?? null;
 
     const { data, error } = await supabase
       .from('expenses')

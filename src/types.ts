@@ -189,6 +189,8 @@ export interface Expense {
   date: string;
   auto?: boolean;
   currency?: Currency;
+  /** Optional supplier this expense was paid to (raw-material buys). */
+  supplierId?: string;
 }
 
 export interface Supplier {

@@ -597,8 +597,8 @@ export default function Sales() {
 
           <ConfirmDialog
             open={!!confirmRefund}
-            title="Refund this sale?"
-            message="Stock will be restored and any linked debt removed."
+            title={t('sales.refundConfirmTitle')}
+            message={t('sales.refundConfirmMsg')}
             onConfirm={() => {
               if (!confirmRefund) return;
               refundSale.mutate(confirmRefund, {
